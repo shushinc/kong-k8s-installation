@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: ts43-redis
+  namespace: kong
+spec:
+  serviceName: ts43-redis
+  replicas: 1
+  selector:
+    matchLabels: { app: ts43-redis }
+  template:
+    metadata:
+      labels: { app: ts43-redis }
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.2-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["sh","-lc"]
+          args:
+            - |
+              export REDIS_PASSWORD=$(cat /secrets/password);
+              exec redis-server /usr/local/etc/redis/redis.conf
+          ports:
+            - containerPort: 6379
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-auth
+                  key: password
+          volumeMounts:
+            - name: redis-config
+              mountPath: /usr/local/etc/redis/
+            - name: redis-data
+              mountPath: /data
+            - name: redis-secret
+              mountPath: /secrets
+              readOnly: true
+          readinessProbe:
+            tcpSocket: { port: 6379 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 6379 }
+            initialDelaySeconds: 15
+            periodSeconds: 10
+      volumes:
+        - name: redis-config
+          configMap:
+            name: redis-config
+            items:
+              - key: redis.conf
+                path: redis.conf
+        - name: redis-secret
+          secret:
+            secretName: redis-auth
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+        # K3s default is usually "local-path". Set explicitly if you like:
+        # storageClassName: local-path

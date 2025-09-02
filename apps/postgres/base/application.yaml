@@ -1,0 +1,21 @@
+apiVersion: helm.cattle.io/v1
+kind: HelmChart
+metadata:
+  name: kong-pg
+  namespace: kong
+spec:
+  chart: postgresql
+  repo: https://charts.bitnami.com/bitnami
+  targetNamespace: kong
+  # pin if you want: version: 15.5.3
+  valuesContent: |-
+    auth:
+      postgresPassword: "supersecret-postgres"   # admin 'postgres'
+      username: "kong"                           # app user
+      password: "supersecret-kong"
+      database: "kong"
+
+    primary:
+      persistence:
+        enabled: true
+        size: 8Gi

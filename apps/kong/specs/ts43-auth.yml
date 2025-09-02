@@ -1,0 +1,342 @@
+openapi: 3.0.3
+info:
+  title: Sherlock API
+  version: "1.0.0"
+  description: Sherlock provide a comprehesnive list of Network Authentication.
+  termsOfService: https://shush.pw/terms/
+  contact:
+    name: Wesam Qaqish
+    url: http://www.shush.pw/contact/
+    email: wesam@shush.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: https://{host}
+    description: Replace {host} with your environment base URL.
+    variables:
+      host:
+        default: api.example.com
+
+tags:
+  - name: Authenticate TS43 User
+    description: Authenticate TS43 User API
+  - name: TS.43 Silent Authentication
+    description: TS.43 Silent Authentication API
+
+
+paths:
+  /v2/issue_auth_code:
+    post:
+      tags: [TS.43 Silent Authentication]
+      summary: TS.43 Auth Code Request
+      description: Issues an authorization code using client credentials in headers (per collection).
+      parameters:
+        - in: header
+          name: Content-Type
+          required: true
+          schema: { type: string, example: application/json }
+        - in: header
+          name: client_id
+          required: true
+          schema: { type: string }
+        - in: header
+          name: client_secret
+          required: true
+          schema: { type: string, format: password }
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthcodeResponse'
+        '400':
+          description: 'INVALID_ARGUMENT: Client specified an invalid argument, request body or query param'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          description: 'UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '403':
+          description: 'FORBIDDEN: Client does not have sufficient permissions to perform this action'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '404':
+          description: 'NOT_FOUND: The resource was not found'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '500':
+          description: INTERNAL_SERVER_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '503':
+          description: 'SERVICE_UNAVAILABLE: Try again later'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+
+  /v2/authenticate_ts43_client:
+    get:
+      tags:
+        - Authenticate TS43 User
+      summary: Authenticate Ts43 Client
+      operationId: authenticate_ts43_client_v2_authenticate_ts43_client_get
+      parameters:
+        - name: eapid
+          in: header
+          required: true
+          schema:
+            type: string
+            title: Eapid
+        - name: setcookie
+          in: header
+          required: true
+          schema:
+            type: string
+            title: Setcookie
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticationTS43ClientResponse'
+        '400':
+          description: 'INVALID_ARGUMENT: Client specified an invalid argument, request body or query param'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          description: 'UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '403':
+          description: 'FORBIDDEN: Client does not have sufficient permissions to perform this action'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '404':
+          description: 'NOT_FOUND: The resource was not found'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '500':
+          description: INTERNAL_SERVER_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '503':
+          description: 'SERVICE_UNAVAILABLE: Try again later'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+    post:
+      tags:
+        - Authenticate TS43 User
+      summary: Challenge Ts43 Client
+      operationId: challenge_ts43_client_v2_authenticate_ts43_client_post
+      parameters:
+        - name: setcookie
+          in: header
+          required: true
+          schema:
+            anyOf:
+              - type: string
+            title: Setcookie
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChallengeTS43ClientRequestSchema'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeTS43ClientResponse'
+        '400':
+          description: 'INVALID_ARGUMENT: Client specified an invalid argument, request body or query param'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '401':
+          description: 'UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '403':
+          description: 'FORBIDDEN: Client does not have sufficient permissions to perform this action'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '404':
+          description: 'NOT_FOUND: The resource was not found'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '500':
+          description: INTERNAL_SERVER_ERROR
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '503':
+          description: 'SERVICE_UNAVAILABLE: Try again later'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+    
+
+components:
+
+  schemas:
+    Message:
+      properties:
+        message:
+          anyOf:
+            - type: string
+          title: Message
+          example: Error Details
+      type: object
+      title: Message
+
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      title: ValidationError
+
+    AuthenticationTS43ClientResponse:
+      properties:
+        userName:
+          type: string
+          title: Username
+          example: 0311230004587096@nai.sherlock.mncXXX.mccXXX.3gppnetwork.org
+        resultCode:
+          type: integer
+          title: Resultcode
+          example: 1001
+        eapPayload:
+          type: string
+          title: Eappayload
+          example: 0101008017010000010500008a2440d11e9a3c9d7fbce39208822e7602050000db9f7dd5b2478001686cca0bd3f738b88601000081050000663df13a96010000c5460b1c10d72f07820900007d0ed82a4d6e9c9595ead24258aa47ba7e73464e1fb6caaba3f4dc17f77369550b0500005119fb6e399f9db8a9d8878c45e2a892
+      type: object
+      required:
+        - userName
+        - resultCode
+        - eapPayload
+      title: AuthenticationTS43ClientResponse
+
+    ChallengeTS43ClientRequestSchema:
+      properties:
+        eapPayload:
+          type: string
+          title: Eappayload
+          example: 0101008017010000010500008a2440d11e9a3c9d7fbce39208822e7602050000db9f7dd5b2478001686cca0bd3f738b88601000081050000663df13a96010000c5460b1c10d72f07820900007d0ed82a4d6e9c9595ead24258aa47ba7e73464e1fb6caaba3f4dc17f77369550b0500005119fb6e399f9db8a9d8878c45e2a892
+      type: object
+      required:
+        - eapPayload
+      title: ChallengeTS43ClientRequestSchema
+
+    AuthcodeResponse:
+      properties:
+        authCode:
+          type: string
+          title: Authcode
+          example: Ff0b5QHwsiCdux39OwPG6hK7XJFHerWwBMVi3bRasWI
+        expires_in:
+          type: integer
+          title: expires_in
+          example: 120
+      type: object
+      required:
+        - authCode
+        - expires_in
+      title: AuthcodeResponse
+    ChallengeTS43ClientResponse:
+        properties:
+          setCookie:
+            type: string
+            title: Setcookie
+            example: 123456dijhafuewhdvnzkldvnhgiulea
+          resultCode:
+            type: integer
+            title: Resultcode
+            example: 2001
+        type: object
+        required:
+          - setCookie
+          - resultCode
+        title: ChallengeTS43ClientResponse

@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sherlocks-sync
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: deck-sync
+          image: kong/deck:latest
+          args:
+            - "sync"
+            - "--state"
+            - "/state/{{ .Values.stateFileName }}"
+            - "--kong-addr"
+            - "{{ .Values.kongAdminURL }}"
+          env:
+{{- if .Values.rbac.enabled }}
+            - name: KONG_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: kong-admin-token
+                  key: token
+{{- end }}
+          volumeMounts:
+            - name: state
+              mountPath: /state
+      volumes:
+        - name: state
+          configMap:
+            name: sherlock-state

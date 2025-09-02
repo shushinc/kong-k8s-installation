@@ -1,0 +1,17 @@
+# camera-auth/k8s/on-perm/kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kong
+resources:
+  - ../base
+
+images:
+  - name: us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth 
+    newTag: v1 
+
+patches:
+  - path: patch-env.yaml
+    target:
+      kind: Deployment
+      name: camera-auth 

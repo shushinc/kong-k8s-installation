@@ -1,0 +1,688 @@
+_format_version: "3.0"
+services:
+- host: ts43-auth-backend.kong.svc.cluster.local
+  id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf83
+  name: ts43
+  path: /
+  protocol: http
+  port: 80
+  retries: 3
+  connect_timeout: 60000
+  write_timeout: 60000
+  read_timeout: 60000
+  tags: [TS43]
+  routes:
+  - id: fdc49bc0-8190-4057-b495-db4694bcd892
+    methods:
+    - POST
+    name: oauth2-token
+    paths:
+    - /oauth2/token
+    plugins:
+      - name: oauth2
+        config:
+          scopes:
+          - sherlockapiresource/write
+          global_credentials: true 
+          provision_key: OAuth Token Dispencer
+          enable_client_credentials: true 
+          enable_authorization_code: true
+          accept_http_if_already_terminated: true
+    regex_priority: 200
+    strip_path: false
+    tags: [TS43]
+    service:
+      id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf83
+  - id: 82c90817-0bd4-5472-aa79-870d0438732e
+    methods:
+    - POST
+    name: sherlock-api_v2-issue-auth-code_post
+    paths:
+    - ~/v2/issue_auth_code
+    plugins:
+      - name: pre-function
+        config:
+          access:
+            - |
+                  -- Read body (supports application/x-www-form-urlencoded)
+                  local body = kong.request.get_body() or {}
+                  -- Set dynamic headers to upstream
+                  if body.grant_type then kong.service.request.set_header("grant_type", body.grant_type) end
+                  if body.client_id then kong.service.request.set_header("client_id", body.client_id) end
+                  if body.client_secret then kong.service.request.set_header("client_secret", body.client_secret) end
+                  if body.scope then kong.service.request.set_header("scope", body.scope) end
+                  -- Capture what client used to reach Kong
+                  local host = kong.request.get_forwarded_host()
+                  local port = kong.request.get_forwarded_port()
+
+                  -- Send it upstream as a header
+                  if host and port then
+                    kong.service.request.set_header("kong_base_url", "https://" .. host .. ":" .. port)
+                  end
+    regex_priority: 200
+    strip_path: false
+    tags: [TS43]
+    service:
+        id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf83
+      # GET /v2/authenticate_ts43_client
+  - id: 2e6acf9f-7892-5cc6-b8a4-39769531bbab
+    methods:
+    - GET
+    name: sherlock-api_authenticate-ts43-client-v2-authenticate-ts43-client-get
+    paths:
+    - ~/v2/authenticate_ts43_client
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [TS43]
+
+      # POST /v2/authenticate_ts43_client (challenge)
+  - id: f34b2152-b04e-5b80-9d78-8d096ce1f823
+    methods:
+    - POST
+    name: sherlock-api_challenge-ts43-client-v2-authenticate-ts43-client-post
+    paths:
+    - ~/v2/authenticate_ts43_client
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [TS43]
+  
+- host: camera-auth-service.kong.svc.cluster.local
+  id: 04e4404f-e7ad-4c80-a7ca-fbe4fb348e42
+  name: camera
+  path: /
+  protocol: http
+  port: 80
+  retries: 3
+  connect_timeout: 60000
+  write_timeout: 60000
+  read_timeout: 60000
+  tags: [camera]  
+  routes:
+  # NEW OAUTH2 TOKEN ENDPOINT MANAGED BY KONG
+  - id: 1b9d7c6e-2f3a-4b5d-8c6a-7b8d9e0f1a2b # New Unique ID
+    methods:
+    - POST
+    name: camera-oauth2-token
+    paths:
+    - /oauth2/token
+    plugins:
+      - name: oauth2
+        config:
+          global_credentials: true
+          provision_key: OAuth Token Dispencer
+          enable_client_credentials: true
+          enable_authorization_code: true
+          token_expiration: 3600
+          auth_header_name: Authorization
+          accept_http_if_already_terminated: true
+    strip_path: false
+    tags: [camera]
+  # NEW OAUTH2 AUTHORIZATION ENDPOINT MANAGED BY KONG
+  - id: 2c8e6f5d-1a2b-3c4d-5e6f-7a8b9c0d1e2f # New Unique ID
+    methods:
+    - GET
+    - POST
+    name: camera-oauth2-authorize
+    paths:
+    - /oauth2/authorize
+    plugins:
+      - name: oauth2 # Same plugin config as the token endpoint
+        config:
+          global_credentials: true
+          provision_key: OAuth Token Dispencer
+          enable_client_credentials: true
+          enable_authorization_code: true
+          token_expiration: 3600
+          auth_header_name: Authorization
+          accept_http_if_already_terminated: true
+    strip_path: false
+    tags: [camera]
+
+  - id: 3106e0d9-a190-4762-9d28-2295ca78b708
+    methods:
+    - POST
+    name: camera-token
+    paths:
+    - /token
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [camera]
+
+  - id: 83a989ff-3d7e-495c-ac1c-3951b69a2f82
+    methods:
+    - GET
+    name: camera-GET-authorizer
+    paths:
+    - /authorizer
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [camera]
+
+  - id: b724dbd6-c95a-4d26-8491-61abf4706534
+    methods:
+    - POST
+    name: camera-POST-authorizer
+    paths:
+    - /authorizer
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [camera]
+
+- host: 34.54.169.57
+  id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  name: sherlock-api
+  path: /
+  plugins: []
+  port: 80
+  protocol: http
+  connect_timeout: 60000
+  write_timeout: 60000
+  read_timeout: 60000
+  tags: [sherlock]
+  routes:
+  - id: d87d54ab-27bb-5977-976c-053569739aae
+    methods:
+    - GET
+    name: sherlock-api_read-root-get
+    paths:
+    - ~/$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+    tags: [sherlock]
+  - id: fdcd4db1-16be-5b4a-94a5-bb325ea10f6e
+    methods:
+    - POST
+    name: sherlock-api_account-status-change-retrieve-bundle-account-status-change-v0-retrieve-bundle-post
+    paths:
+    - ~/account-status-change/v0/retrieve-bundle$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 231b1b76-29b0-57d7-975b-8307698a7015
+    methods:
+    - POST
+    name: sherlock-api_account-status-change-retrieve-last-billing-address-change-date-account-status-change-v0-retrieve-last-billing-address-change-date-post
+    paths:
+    - ~/account-status-change/v0/retrieve-last-billing-address-change-date$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 220c2296-5c20-584c-878b-4c81ee1b50f5
+    methods:
+    - POST
+    name: sherlock-api_account-status-change-retrieve-last-number-change-date-account-status-change-v0-retrieve-last-number-change-date-post
+    paths:
+    - ~/account-status-change/v0/retrieve-last-number-change-date$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: c79c04a4-fd48-508c-9109-4b76ba9f6e8f
+    methods:
+    - POST
+    name: sherlock-api_account-status-change-retrieve-last-primary-name-change-date-account-status-change-v0-retrieve-last-primary-name-change-date-post
+    paths:
+    - ~/account-status-change/v0/retrieve-last-primary-name-change-date$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: cc8c0edc-e80f-595c-943c-691e08455e48
+    methods:
+    - POST
+    name: sherlock-api_account-status-change-retrieve-msisdn-porting-status-account-status-change-v0-retrieve-msisdn-porting-status-post
+    paths:
+    - ~/account-status-change/v0/retrieve-msisdn-porting-status$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: f9a4ca50-b229-5c0e-a3d6-62e7a6e0e3af
+    methods:
+    - POST
+    name: sherlock-api_account-status-change-retrieve-subscription-status-change-date-account-status-change-v0-retrieve-subscription-status-change-date-post
+    paths:
+    - ~/account-status-change/v0/retrieve-subscription-status-change-date$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 4f9fca00-a585-5035-9ff5-b6c923d469ca
+    methods:
+    - POST
+    name: sherlock-api_account-status-retrieve-account-type-account-status-v0-retrieve-account-type-post
+    paths:
+    - ~/account-status/v0/retrieve-account-type$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 0039bd45-0ad5-5406-b379-046581b10f2f
+    methods:
+    - POST
+    name: sherlock-api_account-status-retrieve-bundle-account-status-v0-retrieve-bundle-post
+    paths:
+    - ~/account-status/v0/retrieve-bundle$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 7a9780ba-47ec-5726-8a79-56bfa3cd1efa
+    methods:
+    - POST
+    name: sherlock-api_account-status-retrieve-customer-type-account-status-v0-retrieve-customer-type-post
+    paths:
+    - ~/account-status/v0/retrieve-customer-type$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 3c5e427c-91c0-594d-b8d9-da067d704c42
+    methods:
+    - POST
+    name: sherlock-api_account-status-retrieve-primary-account-holder-account-status-v0-retrieve-primary-account-holder-post
+    paths:
+    - ~/account-status/v0/retrieve-primary-account-holder$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 125ea5bb-7e19-5b41-91b3-c3a01eddb92a
+    methods:
+    - POST
+    name: sherlock-api_account-status-retrieve-service-activation-date-account-status-v0-retrieve-service-activation-date-post
+    paths:
+    - ~/account-status/v0/retrieve-service-activation-date$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: babb6995-5638-5cc1-be23-e38183d2a69d
+    methods:
+    - POST
+    name: sherlock-api_account-status-retrieve-subscriber-account-status-account-status-v0-retrieve-subscriber-account-status-post
+    paths:
+    - ~/account-status/v0/retrieve-subscriber-account-status$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: bdc5e415-7b7e-54dd-ae4f-c928255faab5
+    methods:
+    - POST
+    name: sherlock-api_number-verification-verify-age-customer-verification-v0-verify-age-post
+    paths:
+    - ~/customer-verification/v0/verify-age$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 831b2ad0-19a3-5792-8536-62ea5972d2a9
+    methods:
+    - POST
+    name: sherlock-api_number-verification-verify-billing-address-customer-verification-v0-verify-billing-address-post
+    paths:
+    - ~/customer-verification/v0/verify-billing-address$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 9dec32dc-34d3-5b9e-a72d-2d40d835fdee
+    methods:
+    - POST
+    name: sherlock-api_number-verification-verify-bundle-customer-verification-v0-verify-bundle-post
+    paths:
+    - ~/customer-verification/v0/verify-bundle$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 148225c9-70e3-5bfd-a411-0f349302e0c6
+    methods:
+    - POST
+    name: sherlock-api_number-verification-verify-email-address-customer-verification-v0-verify-email-address-post
+    paths:
+    - ~/customer-verification/v0/verify-email-address$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: f1ef5575-a152-5fbb-a91b-cfec98bdfd54
+    methods:
+    - POST
+    name: sherlock-api_number-verification-verify-name-customer-verification-v0-verify-name-post
+    paths:
+    - ~/customer-verification/v0/verify-name$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 013866d3-96cc-5a4b-97e5-aa85cdd15439
+    methods:
+    - POST
+    name: sherlock-api_device-location-retrieve-device-location-device-location-v0-retrieve-device-location-post
+    paths:
+    - ~/device-location/v0/retrieve-device-location$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 156796a0-812c-5114-aee0-12325686d98e
+    methods:
+    - POST
+    name: sherlock-api_device-location-verify-device-location-v0-verify-device-location-post
+    paths:
+    - ~/device-location/v0/verify-device-location$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: c8df119f-2bf8-5c06-be62-45d56d001c10
+    methods:
+    - POST
+    name: sherlock-api_device-sim-status-check-sim-swap-device-sim-status-v0-check-sim-swap-post
+    paths:
+    - ~/device-sim-status/v0/check-sim-swap$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 9357ab42-71e1-5eb6-9350-5a54362f6425
+    methods:
+    - POST
+    name: sherlock-api_device-sim-status-retrieve-bundle-device-sim-status-v0-retrieve-bundle-post
+    paths:
+    - ~/device-sim-status/v0/retrieve-bundle$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: d1526f27-0483-5df3-8335-6a25d9b59a4e
+    methods:
+    - POST
+    name: sherlock-api_device-sim-status-retrieve-device-lost-stolen-date-device-sim-status-v0-retrieve-device-lost-stolen-date-post
+    paths:
+    - ~/device-sim-status/v0/retrieve-device-lost-stolen-date$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 9267a94b-f8d0-5468-bbc5-aab57e8c8b2f
+    methods:
+    - POST
+    name: sherlock-api_device-sim-status-retrieve-device-lost-stolen-status-device-sim-status-v0-retrieve-device-lost-stolen-status-post
+    paths:
+    - ~/device-sim-status/v0/retrieve-device-lost-stolen-status$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 7dd52a50-c41a-5bad-a572-0b7b0bf6b8be
+    methods:
+    - POST
+    name: sherlock-api_device-sim-status-retrieve-imei-device-sim-status-v0-retrieve-imei-post
+    paths:
+    - ~/device-sim-status/v0/retrieve-imei$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: cc759de2-eadf-56e7-95c9-625f89e8069d
+    methods:
+    - POST
+    name: sherlock-api_device-sim-status-retrieve-imei-activation-date-device-sim-status-v0-retrieve-imei-activation-date-post
+    paths:
+    - ~/device-sim-status/v0/retrieve-imei-activation-date$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: ac47fc42-9bcd-54f5-a299-e7866c70623c
+    methods:
+    - POST
+    name: sherlock-api_device-sim-status-retrieve-imei-change-date-device-sim-status-v0-retrieve-imei-change-date-post
+    paths:
+    - ~/device-sim-status/v0/retrieve-imei-change-date$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: ee87edbe-4ad5-5890-bf1e-3dae5822a7cb
+    methods:
+    - POST
+    name: sherlock-api_device-sim-status-retrieve-imsi-activation-date-device-sim-status-v0-retrieve-imsi-activation-date-post
+    paths:
+    - ~/device-sim-status/v0/retrieve-imsi-activation-date$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 27400d93-60ea-5091-9f60-aaef2660d257
+    methods:
+    - POST
+    name: sherlock-api_device-sim-status-retrieve-imsi-change-date-device-sim-status-v0-retrieve-imsi-change-date-post
+    paths:
+    - ~/device-sim-status/v0/retrieve-imsi-change-date$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 3f140166-9cf0-5280-83f3-44f47b5f6349
+    methods:
+    - POST
+    name: sherlock-api_in-call-state-retrieve-active-inbound-in-call-state-v0-retrieve-active-inbound-post
+    paths:
+    - ~/in-call-state/v0/retrieve-active-inbound$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 5555804f-999e-5c1c-94eb-17ad18a99307
+    methods:
+    - POST
+    name: sherlock-api_in-call-state-retrieve-active-outbound-in-call-state-v0-retrieve-active-outbound-post
+    paths:
+    - ~/in-call-state/v0/retrieve-active-outbound$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 777c02c6-58d3-52a9-80e6-ea46de34a3f8
+    methods:
+    - POST
+    name: sherlock-api_in-call-state-retrieve-bundle-in-call-state-v0-retrieve-bundle-post
+    paths:
+    - ~/in-call-state/v0/retrieve-bundle$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: e1147ff8-5a5b-5d1f-af77-4ebb2b809cf7
+    methods:
+    - GET
+    name: sherlock-api_number-verification-retrieve-number-by-token-number-verification-v0-retrieve-phone-number-get
+    paths:
+    - ~/number-verification/v0/retrieve_phone_number$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: d3f3336b-cd5f-5422-8c78-ed481a2a920b
+    methods:
+    - POST
+    name: sherlock-api_number-verification-verify-number-number-verification-v0-verify-number-post
+    paths:
+    - ~/number-verification/v0/verify-number$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: e49df9dc-3f72-5be4-9963-b94d8ea76e76
+    methods:
+    - POST
+    name: sherlock-api_number-verification-verify-number-by-token-number-verification-v0-verify-phone-number-post
+    paths:
+    - ~/number-verification/v0/verify_phone_number$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 4e971916-b258-5890-a580-b1f331d18a22
+    methods:
+    - POST
+    name: sherlock-api_routing-status-retrieve-bundle-routing-status-v0-retrieve-bundle-post
+    paths:
+    - ~/routing-status/v0/retrieve-bundle$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 41304c0f-b9ad-581d-8af2-b3e360c81b7b
+    methods:
+    - POST
+    name: sherlock-api_routing-status-retrieve-call-forwarding-routing-status-v0-retrieve-call-forwarding-post
+    paths:
+    - ~/routing-status/v0/retrieve-call-forwarding$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: fdb26aba-4e21-57ef-b831-19094675651f
+    methods:
+    - POST
+    name: sherlock-api_routing-status-retrieve-roaming-status-routing-status-v0-retrieve-roaming-status-post
+    paths:
+    - ~/routing-status/v0/retrieve-roaming-status$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: b9e82f23-2ed1-5647-a18f-291e0c16a0fc
+    methods:
+    - POST
+    name: sherlock-api_silent-authentication-retrieve-ip-address-silent-authentication-v0-retrieve-ip-address-post
+    paths:
+    - ~/silent-authentication/v0/retrieve-ip-address$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 94ce09ff-bbcf-5c13-9095-212bcb0a48bb
+    methods:
+    - POST
+    name: sherlock-api_silent-authentication-verify-ip-address-silent-authentication-v0-verify-ip-address-post
+    paths:
+    - ~/silent-authentication/v0/verify-ip-address$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: f6400b09-8436-557b-a2e8-3e9fa6ce94a4
+    methods:
+    - GET
+    name: sherlock-api_authenticate-user-v0-authenticate-user-get
+    paths:
+    - ~/v0/authenticate_user$
+    plugins: []
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+upstreams: []
+
+consumers:
+  - username: test-app
+    tags: []
+    oauth2_credentials:
+      - name: test-app
+        client_id: "test"       # <-- set your actual values
+        client_secret: "test"

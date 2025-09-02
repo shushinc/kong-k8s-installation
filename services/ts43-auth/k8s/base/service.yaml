@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ts43-auth-backend
+  namespace: kong
+spec:
+  selector:
+    app: ts43-auth
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

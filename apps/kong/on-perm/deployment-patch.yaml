@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong-kong
+  namespace: kong
+spec:
+  template:
+    spec:
+      containers:
+        - name: proxy
+          env:
+            - name: KONG_TRUSTED_IPS
+              value: "0.0.0.0/0,::/0"
+            - name: KONG_REAL_IP_HEADER
+              value: "X-Forwarded-For"
+            - name: KONG_REAL_IP_RECURSIVE
+              value: "on"
+            # - name: KONG_ADMIN_GUI_URL
+            #   value: "http://34.61.21.100:30516"
+            # - name: KONG_ADMIN_GUI_API_URL
+            #   value: "http://34.61.21.100:32081"

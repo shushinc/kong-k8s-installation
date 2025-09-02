@@ -1,0 +1,7 @@
+apiVersion: v2
+name: sherlock-config
+version: 0.1.0
+description: Sync Sherlock-state OpenAPI-derived Kong config using decK
+type: application
+annotations:
+  artifacthub.io/containsSecurityUpdates: "false"

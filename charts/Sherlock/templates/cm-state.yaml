@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sherlock-state
+data:
+  {{ .Values.stateFileName }}: |
+{{- tpl (.Files.Get .Values.stateFileName) . | nindent 4 }}

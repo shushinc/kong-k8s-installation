@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ts43-auth
+  namespace: kong
+  labels:
+    app: ts43-auth
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ts43-auth
+  template:
+    metadata:
+      labels:
+        app: ts43-auth
+    spec:
+      containers:
+        - name: api
+          image: us-central1-docker.pkg.dev/sherlock-004/ts43/ts43-authcode:v9
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            # The FastAPI wrapper defaults to this; keep if you used the wrapper I sent
+            - name: SCRIPT_PATH
+              value: "/app/ts43-issue-auth-code.py"
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      terminationGracePeriodSeconds: 10

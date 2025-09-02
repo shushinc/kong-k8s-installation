@@ -1,0 +1,5958 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Sherlock API",
+    "summary": "Sherlock provide a comprehesnive list of Network Authentication.",
+    "description": "This is the first version of Shush Sherlock API Platform",
+    "termsOfService": "https://shush.pw/terms/",
+    "contact": {
+      "name": "Wesam Qaqish",
+      "url": "http://www.shush.pw/contact/",
+      "email": "wesam@shush.com"
+    },
+    "license": {
+      "name": "Apache 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0.html"
+    },
+    "version": "0.0.2"
+  },
+  "paths": {
+    "/": {
+      "get": {
+        "tags": [
+          "root"
+        ],
+        "summary": "Read Root",
+        "operationId": "read_root__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Read Root  Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/silent-authentication/v0/retrieve-ip-address": {
+      "post": {
+        "tags": [
+          "Silent Authentication"
+        ],
+        "summary": "Silent Authentication Retrieve Ip Address",
+        "operationId": "silent_authentication_retrieve_ip_address_silent_authentication_v0_retrieve_ip_address_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SilentAuthenticationRetrieveIPAddressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: Client does not have sufficient permissions to perform this action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: The item was not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "505": {
+            "description": "INVALID_PARAM: Invalid Phone Number",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/silent-authentication/v0/verify-ip-address": {
+      "post": {
+        "tags": [
+          "Zero Trust Silent Authentication"
+        ],
+        "summary": "Silent Authentication Verify Ip Address",
+        "operationId": "silent_authentication_verify_ip_address_silent_authentication_v0_verify_ip_address_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZeroTrustSilentAuthenticationVerifyIPAddressRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZeroTrustSilentAuthenticationVerifyIPAddressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: Client does not have sufficient permissions to perform this action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: The item was not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "505": {
+            "description": "INVALID_PARAM: Invalid Phone Number",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v0/authenticate_user": {
+      "get": {
+        "tags": [
+          "Authenticate User"
+        ],
+        "summary": "Authenticate User",
+        "operationId": "authenticate_user_v0_authenticate_user_get",
+        "parameters": [
+          {
+            "name": "queryParams",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/AuthenticateUserRequest"
+            }
+          },
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZeroTrustSilentAuthenticationVerifyIPAddressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: Client does not have sufficient permissions to perform this action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: The item was not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "505": {
+            "description": "INVALID_PARAM: Invalid Phone Number",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/authenticate_ts43_client": {
+      "get": {
+        "tags": [
+          "Authenticate TS43 User"
+        ],
+        "summary": "Authenticate Ts43 Client",
+        "operationId": "authenticate_ts43_client_v2_authenticate_ts43_client_get",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          },
+          {
+            "name": "eapid",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Eapid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthenticationTS43ClientResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: Client does not have sufficient permissions to perform this action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: The resource was not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_SERVER_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: Try again later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Authenticate TS43 User"
+        ],
+        "summary": "Challenge Ts43 Client",
+        "operationId": "challenge_ts43_client_v2_authenticate_ts43_client_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          },
+          {
+            "name": "setcookie",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Setcookie"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChallengeTS43ClientRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChallengeTS43ClientResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN: Client does not have sufficient permissions to perform this action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: The resource was not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_SERVER_ERROR",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: Try again later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/number-verification/v0/verify-number": {
+      "post": {
+        "tags": [
+          "Number Verification - Number Verify"
+        ],
+        "summary": "Number Verification Verify Number",
+        "operationId": "number_verification_verify_number_number_verification_v0_verify_number_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NumberVerificationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: Client does not have sufficient permissions to perform this action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/number-verification/v0/retrieve_phone_number": {
+      "get": {
+        "tags": [
+          "Number Verification - Retrieve Number by Token"
+        ],
+        "summary": "Number Verification Retrieve Number By Token",
+        "operationId": "number_verification_retrieve_number_by_token_number_verification_v0_retrieve_phone_number_get",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          },
+          {
+            "name": "msisdn",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Msisdn"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NumberRetrieveByTokenResponseGSMA"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: Client does not have sufficient permissions to perform this action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/number-verification/v0/verify_phone_number": {
+      "post": {
+        "tags": [
+          "Number Verification - Verify Number by Token"
+        ],
+        "summary": "Number Verification Verify Number By Token",
+        "operationId": "number_verification_verify_number_by_token_number_verification_v0_verify_phone_number_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          },
+          {
+            "name": "msisdn",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Msisdn"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NumberRetrieveByTokenResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: Client does not have sufficient permissions to perform this action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customer-verification/v0/verify-name": {
+      "post": {
+        "tags": [
+          "Customer Verification - Name Verify (First and Last)"
+        ],
+        "summary": "Number Verification Verify Name",
+        "operationId": "number_verification_verify_name_customer_verification_v0_verify_name_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerVerificationNameRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerVerificationNameResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CUSTOMER_VERIFICATION.ID_DOCUMENT_MISMATCH: The idDocument needs to match the one associated with the provided phoneNumber",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: not_found_contractor/not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customer-verification/v0/verify-billing-address": {
+      "post": {
+        "tags": [
+          "Customer Verification - Billing Address Verify"
+        ],
+        "summary": "Number Verification Verify Billing Address",
+        "operationId": "number_verification_verify_billing_address_customer_verification_v0_verify_billing_address_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerVerificationBillingAddressRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerVerificationBillingAddressResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CUSTOMER_VERIFICATION.ID_DOCUMENT_MISMATCH: The idDocument needs to match the one associated with the provided phoneNumber",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: not_found_contractor/not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customer-verification/v0/verify-email-address": {
+      "post": {
+        "tags": [
+          "Customer Verification - Email Address Verify"
+        ],
+        "summary": "Number Verification Verify Email Address",
+        "operationId": "number_verification_verify_email_address_customer_verification_v0_verify_email_address_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerVerificationEmailAddressRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerVerificationEmailResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CUSTOMER_VERIFICATION.ID_DOCUMENT_MISMATCH: The idDocument needs to match the one associated with the provided phoneNumber",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: not_found_contractor/not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customer-verification/v0/verify-age": {
+      "post": {
+        "tags": [
+          "Customer Verification - Age Verify"
+        ],
+        "summary": "Number Verification Verify Age",
+        "operationId": "number_verification_verify_age_customer_verification_v0_verify_age_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerVerificationAgeRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerVerificationAgeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/customer-verification/v0/verify-bundle": {
+      "post": {
+        "tags": [
+          "Customer Verification - Customer Verification Bundle"
+        ],
+        "summary": "Number Verification Verify Bundle",
+        "operationId": "number_verification_verify_bundle_customer_verification_v0_verify_bundle_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerVerificationBundleRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerVerificationBundleResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status/v0/retrieve-customer-type": {
+      "post": {
+        "tags": [
+          "Account Status - Customer Type"
+        ],
+        "summary": "Account Status Retrieve Customer Type",
+        "operationId": "account_status_retrieve_customer_type_account_status_v0_retrieve_customer_type_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusRetrieveCustomerTypeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status/v0/retrieve-account-type": {
+      "post": {
+        "tags": [
+          "Account Status - Account Type"
+        ],
+        "summary": "Account Status Retrieve Account Type",
+        "operationId": "account_status_retrieve_account_type_account_status_v0_retrieve_account_type_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusRetrieveAccountTypeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status/v0/retrieve-primary-account-holder": {
+      "post": {
+        "tags": [
+          "Account Status - Primary Account Holder"
+        ],
+        "summary": "Account Status Retrieve Primary Account Holder",
+        "operationId": "account_status_retrieve_primary_account_holder_account_status_v0_retrieve_primary_account_holder_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusRetrievePrimaryAccountHolderResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status/v0/retrieve-service-activation-date": {
+      "post": {
+        "tags": [
+          "Account Status - Service Activation Date"
+        ],
+        "summary": "Account Status Retrieve Service Activation Date",
+        "operationId": "account_status_retrieve_service_activation_date_account_status_v0_retrieve_service_activation_date_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusRetrieveServiceActivationDateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status/v0/retrieve-subscriber-account-status": {
+      "post": {
+        "tags": [
+          "Account Status - Subscriber Account Status"
+        ],
+        "summary": "Account Status Retrieve Subscriber Account Status",
+        "operationId": "account_status_retrieve_subscriber_account_status_account_status_v0_retrieve_subscriber_account_status_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusRetrieveSubscriberAccountStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status/v0/retrieve-bundle": {
+      "post": {
+        "tags": [
+          "Account Status - Account Status Bundle"
+        ],
+        "summary": "Account Status Retrieve Bundle",
+        "operationId": "account_status_retrieve_bundle_account_status_v0_retrieve_bundle_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusRetrieveResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status-change/v0/retrieve-last-number-change-date": {
+      "post": {
+        "tags": [
+          "Account Status Change - Last Mobile Number Change Date"
+        ],
+        "summary": "Account Status Change Retrieve Last Number Change Date",
+        "operationId": "account_status_change_retrieve_last_number_change_date_account_status_change_v0_retrieve_last_number_change_date_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusChangeLastMobileNumberChangeDateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status-change/v0/retrieve-subscription-status-change-date": {
+      "post": {
+        "tags": [
+          "Account Status Change - Subscription Status Change Date"
+        ],
+        "summary": "Account Status Change Retrieve Subscription Status Change Date",
+        "operationId": "account_status_change_retrieve_subscription_status_change_date_account_status_change_v0_retrieve_subscription_status_change_date_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusChangeSubscriptionStatusChangeDateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status-change/v0/retrieve-last-primary-name-change-date": {
+      "post": {
+        "tags": [
+          "Account Status Change - Last Primary Name Change Date"
+        ],
+        "summary": "Account Status Change Retrieve Last Primary Name Change Date",
+        "operationId": "account_status_change_retrieve_last_primary_name_change_date_account_status_change_v0_retrieve_last_primary_name_change_date_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusChangeLastPrimaryNameChangeDateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status-change/v0/retrieve-last-billing-address-change-date": {
+      "post": {
+        "tags": [
+          "Account Status Change - Last Billing Address Change Date"
+        ],
+        "summary": "Account Status Change Retrieve Last Billing Address Change Date",
+        "operationId": "account_status_change_retrieve_last_billing_address_change_date_account_status_change_v0_retrieve_last_billing_address_change_date_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusChangeLastBillingAddressChangeDateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status-change/v0/retrieve-msisdn-porting-status": {
+      "post": {
+        "tags": [
+          "Account Status Change - MSISDN Porting Status"
+        ],
+        "summary": "Account Status Change Retrieve Msisdn Porting Status",
+        "operationId": "account_status_change_retrieve_msisdn_porting_status_account_status_change_v0_retrieve_msisdn_porting_status_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusChangeMSISDNPortingStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/account-status-change/v0/retrieve-bundle": {
+      "post": {
+        "tags": [
+          "Account Status Change - Account Status Change Bundle"
+        ],
+        "summary": "Account Status Change Retrieve Bundle",
+        "operationId": "account_status_change_retrieve_bundle_account_status_change_v0_retrieve_bundle_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountStatusChangeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device-sim-status/v0/retrieve-imei-activation-date": {
+      "post": {
+        "tags": [
+          "Device SIM Status - IMEI Activation Date"
+        ],
+        "summary": "Device Sim Status Retrieve Imei Activation Date",
+        "operationId": "device_sim_status_retrieve_imei_activation_date_device_sim_status_v0_retrieve_imei_activation_date_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSimStatusIMEIActivationDateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "CUSTOMER_VERIFICATION.ID_DOCUMENT_MISMATCH: The idDocument needs to match the one associated with the provided phoneNumber",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: not_found_contractor/not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device-sim-status/v0/retrieve-imei-change-date": {
+      "post": {
+        "tags": [
+          "Device SIM Status - IMEI Change Date"
+        ],
+        "summary": "Device Sim Status Retrieve Imei Change Date",
+        "operationId": "device_sim_status_retrieve_imei_change_date_device_sim_status_v0_retrieve_imei_change_date_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSimStatusIMEIChangeDateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device-sim-status/v0/retrieve-imei": {
+      "post": {
+        "tags": [
+          "Device SIM Status - IMEI Lookup"
+        ],
+        "summary": "Device Sim Status Retrieve Imei",
+        "operationId": "device_sim_status_retrieve_imei_device_sim_status_v0_retrieve_imei_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSimStatusIMEILookupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "OUT_OF_RANGE: Invalid value: ipv4Address.publicPort",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "AUTHENTICATION_REQUIRED: New authentication is required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "INVALID_TOKEN_CONTEXT: {{field}} is not consistent with access token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "DEVICE_NOT_FOUND: Device identifier not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "METHOD_NOT_ALLOWED: The request method is not supported by this resource",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "406": {
+            "description": "NOT_ACCEPTABLE: The server cannot produce a response matching the content requested by the client through Accept-* headers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "DEVICE_NOT_APPLICABLE: The service is not available for the provided device.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS: Either out of resource quota or reaching rate limiting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: The service is currently not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "BAD_GATEWAY: The service is currently not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: The service is currently not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: The service is currently not available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device-sim-status/v0/retrieve-imsi-activation-date": {
+      "post": {
+        "tags": [
+          "Device SIM Status - MSISDN / IMSI Activation Date"
+        ],
+        "summary": "Device Sim Status Retrieve Imsi Activation Date",
+        "operationId": "device_sim_status_retrieve_imsi_activation_date_device_sim_status_v0_retrieve_imsi_activation_date_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSimStatusIMSIActivationDateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device-sim-status/v0/retrieve-device-lost-stolen-status": {
+      "post": {
+        "tags": [
+          "Device SIM Stolen Status - Device Lost / Stolen Indicator"
+        ],
+        "summary": "Device Sim Status Retrieve Device Lost Stolen Status",
+        "operationId": "device_sim_status_retrieve_device_lost_stolen_status_device_sim_status_v0_retrieve_device_lost_stolen_status_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSimStatusDeviceLostStolenIndicatorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device-sim-status/v0/retrieve-device-lost-stolen-date": {
+      "post": {
+        "tags": [
+          "Device SIM Stolen Status - Device Lost / Stolen Date"
+        ],
+        "summary": "Device Sim Status Retrieve Device Lost Stolen Date",
+        "operationId": "device_sim_status_retrieve_device_lost_stolen_date_device_sim_status_v0_retrieve_device_lost_stolen_date_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSimStatusDeviceLostStolenDateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device-sim-status/v0/check-sim-swap": {
+      "post": {
+        "tags": [
+          "Device SIM Status - SIM Swap - SIM / IMSI Change Date Check"
+        ],
+        "summary": "Device Sim Status Check Sim Swap",
+        "operationId": "device_sim_status_check_sim_swap_device_sim_status_v0_check_sim_swap_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckSimSwapRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckSimSwapResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: Client does not have sufficient permissions to perform this action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SIM_SWAP.UNKNOWN_PHONE_NUMBER: SIM Swap can't be checked because the phone number is unknown.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT: Another request is created for the same MSISDN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device-sim-status/v0/retrieve-imsi-change-date": {
+      "post": {
+        "tags": [
+          "Device SIM Status - MSISDN / IMSI Change Date"
+        ],
+        "summary": "Device Sim Status Retrieve Imsi Change Date",
+        "operationId": "device_sim_status_retrieve_imsi_change_date_device_sim_status_v0_retrieve_imsi_change_date_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSimStatusIMSIChangeDateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: Client does not have sufficient permissions to perform this action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SIM_SWAP.UNKNOWN_PHONE_NUMBER: SIM Swap can't be checked because the phone number is unknown.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT: Another request is created for the same MSISDN",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device-sim-status/v0/retrieve-bundle": {
+      "post": {
+        "tags": [
+          "Device SIM Status - Bundle"
+        ],
+        "summary": "Device Sim Status Retrieve Bundle",
+        "operationId": "device_sim_status_retrieve_bundle_device_sim_status_v0_retrieve_bundle_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceSimStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/routing-status/v0/retrieve-call-forwarding": {
+      "post": {
+        "tags": [
+          "Routing Status - Call Forwarding Indicator"
+        ],
+        "summary": "Routing Status Retrieve Call Forwarding",
+        "operationId": "routing_status_retrieve_call_forwarding_routing_status_v0_retrieve_call_forwarding_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingStatusCallForwardingIndicatorResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "INVALID_TOKEN_CONTEXT: PhoneNumber parameter doesn't match the value from the access token context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "CALL_FORWARDING.UNKNOWN_PHONE_NUMBER: Call forwarding check can't be done because the phone",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "CONFLICT: A specified resource duplicate entry found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: The server refuses to accept the request because the payload format is in an unsupported format.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "UNIDENTIFIABLE_DEVICE: phone number not defined",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TOO_MANY_REQUESTS: Either out of resource quota or reaching rate limiting.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "NOT_IMPLEMENTED: This functionality is not implemented yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "TIMEOUT: Request timeout exceeded. Try later",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/routing-status/v0/retrieve-roaming-status": {
+      "post": {
+        "tags": [
+          "Routing Status - Roaming Status"
+        ],
+        "summary": "Routing Status Retrieve Roaming Status",
+        "operationId": "routing_status_retrieve_roaming_status_routing_status_v0_retrieve_roaming_status_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingStatusRoamingStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Client specified an invalid argument, request body or query param",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Request not authenticated due to missing, invalid, or expired credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: Client does not have sufficient permissions to perform this action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: The specified resource is not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/routing-status/v0/retrieve-bundle": {
+      "post": {
+        "tags": [
+          "Routing Status - Routing Status Bundle"
+        ],
+        "summary": "Routing Status Retrieve Bundle",
+        "operationId": "routing_status_retrieve_bundle_routing_status_v0_retrieve_bundle_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutingStatusResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/in-call-state/v0/retrieve-active-inbound": {
+      "post": {
+        "tags": [
+          "In Call State - Inbound Call"
+        ],
+        "summary": "In Call State Retrieve Active Inbound",
+        "operationId": "in_call_state_retrieve_active_inbound_in_call_state_v0_retrieve_active_inbound_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InCallStateInboundCallResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/in-call-state/v0/retrieve-active-outbound": {
+      "post": {
+        "tags": [
+          "In Call State - Outbound Call"
+        ],
+        "summary": "In Call State Retrieve Active Outbound",
+        "operationId": "in_call_state_retrieve_active_outbound_in_call_state_v0_retrieve_active_outbound_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InCallStateOutboundCallResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/in-call-state/v0/retrieve-bundle": {
+      "post": {
+        "tags": [
+          "In Call State - In Call State Bundle"
+        ],
+        "summary": "In Call State Retrieve Bundle",
+        "operationId": "in_call_state_retrieve_bundle_in_call_state_v0_retrieve_bundle_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InCallStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device-location/v0/retrieve-device-location": {
+      "post": {
+        "tags": [
+          "Device Location"
+        ],
+        "summary": "Device Location Retrieve Device Location",
+        "operationId": "device_location_retrieve_device_location_device_location_v0_retrieve_device_location_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MSISDNBasicRequestSchema"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceLocationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Invalid argument",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Authorization failed: ...",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: Operation not allowed: ...",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: The specified resource is not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/device-location/v0/verify-device-location": {
+      "post": {
+        "tags": [
+          "Device Location - Device Location Geofence"
+        ],
+        "summary": "Device Location Verify",
+        "operationId": "device_location_verify_device_location_v0_verify_device_location_post",
+        "parameters": [
+          {
+            "name": "apikey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Apikey"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeofencingVerifyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeofencingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_ARGUMENT: Invalid argument",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: Authorization failed: ...",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "PERMISSION_DENIED: Operation not allowed: ...",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "NOT_FOUND: The specified resource is not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL: Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "UNAVAILABLE: Service unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountStatusChangeLastBillingAddressChangeDateResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "lastBillingAddressChangeDate": {
+            "type": "string",
+            "title": "Lastbillingaddresschangedate",
+            "example": "06-24-2024"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "lastBillingAddressChangeDate"
+        ],
+        "title": "AccountStatusChangeLastBillingAddressChangeDateResponse"
+      },
+      "AccountStatusChangeLastMobileNumberChangeDateResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "lastMobileNumberChangeDate": {
+            "type": "string",
+            "title": "Lastmobilenumberchangedate",
+            "example": "06-24-2024"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "lastMobileNumberChangeDate"
+        ],
+        "title": "AccountStatusChangeLastMobileNumberChangeDateResponse"
+      },
+      "AccountStatusChangeLastPrimaryNameChangeDateResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "lastPrimaryNameChangeDate": {
+            "type": "string",
+            "title": "Lastprimarynamechangedate",
+            "example": "06-24-2024"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "lastPrimaryNameChangeDate"
+        ],
+        "title": "AccountStatusChangeLastPrimaryNameChangeDateResponse"
+      },
+      "AccountStatusChangeMSISDNPortingStatusResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "msisdnPorted": {
+            "type": "boolean",
+            "title": "Msisdnported",
+            "example": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "msisdnPorted"
+        ],
+        "title": "AccountStatusChangeMSISDNPortingStatusResponse"
+      },
+      "AccountStatusChangeResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "lastMobileNumberChangeDate": {
+            "type": "string",
+            "title": "Lastmobilenumberchangedate",
+            "example": "06-24-2024"
+          },
+          "subscriptionStatusChangeDate": {
+            "type": "string",
+            "title": "Subscriptionstatuschangedate",
+            "example": "06-24-2024"
+          },
+          "lastPrimaryNameChangeDate": {
+            "type": "string",
+            "title": "Lastprimarynamechangedate",
+            "example": "06-24-2024"
+          },
+          "lastBillingAddressChangeDate": {
+            "type": "string",
+            "title": "Lastbillingaddresschangedate",
+            "example": "06-24-2024"
+          },
+          "msisdnPorted": {
+            "type": "boolean",
+            "title": "Msisdnported",
+            "example": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "lastMobileNumberChangeDate",
+          "subscriptionStatusChangeDate",
+          "lastPrimaryNameChangeDate",
+          "lastBillingAddressChangeDate",
+          "msisdnPorted"
+        ],
+        "title": "AccountStatusChangeResponse"
+      },
+      "AccountStatusChangeSubscriptionStatusChangeDateResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "subscriptionStatusChangeDate": {
+            "type": "string",
+            "title": "Subscriptionstatuschangedate",
+            "example": "06-24-2024"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "subscriptionStatusChangeDate"
+        ],
+        "title": "AccountStatusChangeSubscriptionStatusChangeDateResponse"
+      },
+      "AccountStatusRetrieveAccountTypeResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "accountType": {
+            "type": "string",
+            "title": "Accounttype",
+            "example": "Prepaid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "accountType"
+        ],
+        "title": "AccountStatusRetrieveAccountTypeResponse"
+      },
+      "AccountStatusRetrieveCustomerTypeResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "customerType": {
+            "type": "string",
+            "title": "Customertype",
+            "example": "Business"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "customerType"
+        ],
+        "title": "AccountStatusRetrieveCustomerTypeResponse"
+      },
+      "AccountStatusRetrievePrimaryAccountHolderResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "primaryAccountHolder": {
+            "type": "boolean",
+            "title": "Primaryaccountholder",
+            "example": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "primaryAccountHolder"
+        ],
+        "title": "AccountStatusRetrievePrimaryAccountHolderResponse"
+      },
+      "AccountStatusRetrieveResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "customerType": {
+            "type": "string",
+            "title": "Customertype",
+            "example": "Business"
+          },
+          "accountType": {
+            "type": "string",
+            "title": "Accounttype",
+            "example": "Prepaid"
+          },
+          "primaryAccountHolder": {
+            "type": "boolean",
+            "title": "Primaryaccountholder",
+            "example": true
+          },
+          "serviceActivationDate": {
+            "type": "string",
+            "title": "Serviceactivationdate",
+            "example": "06-24-2024"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "example": true
+          },
+          "paid": {
+            "type": "boolean",
+            "title": "Paid",
+            "example": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "customerType",
+          "accountType",
+          "primaryAccountHolder",
+          "serviceActivationDate",
+          "active",
+          "paid"
+        ],
+        "title": "AccountStatusRetrieveResponse"
+      },
+      "AccountStatusRetrieveServiceActivationDateResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "serviceActivationDate": {
+            "type": "string",
+            "title": "Serviceactivationdate",
+            "example": "06-24-2024"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "serviceActivationDate"
+        ],
+        "title": "AccountStatusRetrieveServiceActivationDateResponse"
+      },
+      "AccountStatusRetrieveSubscriberAccountStatusResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "example": true
+          },
+          "paid": {
+            "type": "boolean",
+            "title": "Paid",
+            "example": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "active",
+          "paid"
+        ],
+        "title": "AccountStatusRetrieveSubscriberAccountStatusResponse"
+      },
+      "AuthenticateUserRequest": {
+        "properties": {
+          "msisdn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "ipAddress": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipaddress",
+            "example": "192.168.1.1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "carrierName"
+        ],
+        "title": "AuthenticateUserRequest"
+      },
+      "AuthenticationTS43ClientResponse": {
+        "properties": {
+          "userName": {
+            "type": "string",
+            "title": "Username",
+            "example": "0311230004587096@nai.sherlock.mncXXX.mccXXX.3gppnetwork.org"
+          },
+          "resultCode": {
+            "type": "integer",
+            "title": "Resultcode",
+            "example": 1001
+          },
+          "eapPayload": {
+            "type": "string",
+            "title": "Eappayload",
+            "example": "0101008017010000010500008a2440d11e9a3c9d7fbce39208822e7602050000db9f7dd5b2478001686cca0bd3f738b88601000081050000663df13a96010000c5460b1c10d72f07820900007d0ed82a4d6e9c9595ead24258aa47ba7e73464e1fb6caaba3f4dc17f77369550b0500005119fb6e399f9db8a9d8878c45e2a892"
+          }
+        },
+        "type": "object",
+        "required": [
+          "userName",
+          "resultCode",
+          "eapPayload"
+        ],
+        "title": "AuthenticationTS43ClientResponse"
+      },
+      "ChallengeTS43ClientRequestSchema": {
+        "properties": {
+          "eapPayload": {
+            "type": "string",
+            "title": "Eappayload",
+            "example": "0101008017010000010500008a2440d11e9a3c9d7fbce39208822e7602050000db9f7dd5b2478001686cca0bd3f738b88601000081050000663df13a96010000c5460b1c10d72f07820900007d0ed82a4d6e9c9595ead24258aa47ba7e73464e1fb6caaba3f4dc17f77369550b0500005119fb6e399f9db8a9d8878c45e2a892"
+          }
+        },
+        "type": "object",
+        "required": [
+          "eapPayload"
+        ],
+        "title": "ChallengeTS43ClientRequestSchema"
+      },
+      "ChallengeTS43ClientResponse": {
+        "properties": {
+          "setCookie": {
+            "type": "string",
+            "title": "Setcookie",
+            "example": "123456dijhafuewhdvnzkldvnhgiulea"
+          },
+          "resultCode": {
+            "type": "integer",
+            "title": "Resultcode",
+            "example": 2001
+          }
+        },
+        "type": "object",
+        "required": [
+          "setCookie",
+          "resultCode"
+        ],
+        "title": "ChallengeTS43ClientResponse"
+      },
+      "CheckSimSwapRequest": {
+        "properties": {
+          "msisdn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "default": "CarrierX",
+            "example": "Carrier1"
+          },
+          "customerName": {
+            "type": "string",
+            "title": "Customername",
+            "default": "Bank1",
+            "example": "bank1"
+          },
+          "maxAge": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxage",
+            "default": 24,
+            "example": 24
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier"
+        ],
+        "title": "CheckSimSwapRequest"
+      },
+      "CheckSimSwapResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12321"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "swapped": {
+            "type": "boolean",
+            "title": "Swapped",
+            "example": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "swapped"
+        ],
+        "title": "CheckSimSwapResponse"
+      },
+      "CustomerVerificationAgeRequestSchema": {
+        "properties": {
+          "msisdn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername"
+          },
+          "customerName": {
+            "type": "string",
+            "title": "Customername"
+          },
+          "age": {
+            "type": "integer",
+            "title": "Age"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "carrierName",
+          "customerName",
+          "age"
+        ],
+        "title": "CustomerVerificationAgeRequestSchema",
+        "example": {
+          "age": 19,
+          "carrierName": "Carrier1",
+          "customerName": "Bank1",
+          "identifier": "ABC1231232132",
+          "msisdn": "8184823383"
+        }
+      },
+      "CustomerVerificationAgeResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "ageMatchPercentage": {
+            "type": "integer",
+            "title": "Agematchpercentage",
+            "example": 90
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "carrierName",
+          "msisdn",
+          "ageMatchPercentage"
+        ],
+        "title": "CustomerVerificationAgeResponse"
+      },
+      "CustomerVerificationBillingAddressRequestSchema": {
+        "properties": {
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername"
+          },
+          "customerName": {
+            "type": "string",
+            "title": "Customername"
+          },
+          "billingAddress": {
+            "type": "string",
+            "title": "Billingaddress"
+          }
+        },
+        "type": "object",
+        "required": [
+          "msisdn",
+          "identifier",
+          "carrierName",
+          "customerName",
+          "billingAddress"
+        ],
+        "title": "CustomerVerificationBillingAddressRequestSchema",
+        "example": {
+          "billingAddress": "123 Joe Doe Street",
+          "carrierName": "Carrier1",
+          "customerName": "Bank1",
+          "identifier": "ABC1231232132",
+          "msisdn": "8184823383"
+        }
+      },
+      "CustomerVerificationBillingAddressResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "billingAddressMatchPercentage": {
+            "type": "integer",
+            "title": "Billingaddressmatchpercentage",
+            "example": 70
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "billingAddressMatchPercentage"
+        ],
+        "title": "CustomerVerificationBillingAddressResponse"
+      },
+      "CustomerVerificationBundleRequestSchema": {
+        "properties": {
+          "msisdn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername"
+          },
+          "customerName": {
+            "type": "string",
+            "title": "Customername"
+          },
+          "firstName": {
+            "type": "string",
+            "title": "Firstname"
+          },
+          "lastName": {
+            "type": "string",
+            "title": "Lastname"
+          },
+          "billingAddress": {
+            "type": "string",
+            "title": "Billingaddress"
+          },
+          "emailAddress": {
+            "type": "string",
+            "title": "Emailaddress"
+          },
+          "age": {
+            "type": "integer",
+            "title": "Age"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "carrierName",
+          "customerName",
+          "firstName",
+          "lastName",
+          "billingAddress",
+          "emailAddress",
+          "age"
+        ],
+        "title": "CustomerVerificationBundleRequestSchema",
+        "example": {
+          "BillingAddress": "123 Joe Doe Street",
+          "EmailAddress": "joe@doe.com",
+          "age": 19,
+          "carrierName": "Carrier1",
+          "customerName": "Bank1",
+          "firstName": "Joe",
+          "identifier": "ABC1231232132",
+          "lastName": "Doe",
+          "msisdn": "8184823383"
+        }
+      },
+      "CustomerVerificationBundleResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "firstNameMatchPercentage": {
+            "type": "integer",
+            "title": "Firstnamematchpercentage",
+            "example": 70
+          },
+          "lastNameMatchPercentage": {
+            "type": "integer",
+            "title": "Lastnamematchpercentage",
+            "example": 80
+          },
+          "billingAddressMatchPercentage": {
+            "type": "integer",
+            "title": "Billingaddressmatchpercentage",
+            "example": 90
+          },
+          "emailAddressMatchPercentage": {
+            "type": "integer",
+            "title": "Emailaddressmatchpercentage",
+            "example": 90
+          },
+          "ageMatchPercentage": {
+            "type": "integer",
+            "title": "Agematchpercentage",
+            "example": 90
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "firstNameMatchPercentage",
+          "lastNameMatchPercentage",
+          "billingAddressMatchPercentage",
+          "emailAddressMatchPercentage",
+          "ageMatchPercentage"
+        ],
+        "title": "CustomerVerificationBundleResponse"
+      },
+      "CustomerVerificationEmailAddressRequestSchema": {
+        "properties": {
+          "msisdn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername"
+          },
+          "customerName": {
+            "type": "string",
+            "title": "Customername"
+          },
+          "emailAddress": {
+            "type": "string",
+            "title": "Emailaddress"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "carrierName",
+          "customerName",
+          "emailAddress"
+        ],
+        "title": "CustomerVerificationEmailAddressRequestSchema",
+        "example": {
+          "carrierName": "Carrier1",
+          "customerName": "Bank1",
+          "emailAddress": "joe@doe.com",
+          "identifier": "ABC1231232132",
+          "msisdn": "8184823383"
+        }
+      },
+      "CustomerVerificationEmailResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "emailAddressMatchPercentage": {
+            "type": "integer",
+            "title": "Emailaddressmatchpercentage",
+            "example": 90
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "carrierName",
+          "msisdn",
+          "emailAddressMatchPercentage"
+        ],
+        "title": "CustomerVerificationEmailResponse"
+      },
+      "CustomerVerificationNameRequestSchema": {
+        "properties": {
+          "msisdn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername"
+          },
+          "customerName": {
+            "type": "string",
+            "title": "Customername"
+          },
+          "firstName": {
+            "type": "string",
+            "title": "Firstname"
+          },
+          "lastName": {
+            "type": "string",
+            "title": "Lastname"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "carrierName",
+          "customerName",
+          "firstName",
+          "lastName"
+        ],
+        "title": "CustomerVerificationNameRequestSchema",
+        "example": {
+          "carrierName": "Carrier1",
+          "customerName": "Bank1",
+          "firstName": "Joe",
+          "identifier": "ABC1231232132",
+          "lastName": "Doe",
+          "msisdn": "8184823383"
+        }
+      },
+      "CustomerVerificationNameResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "firstNameMatchPercentage": {
+            "type": "integer",
+            "title": "Firstnamematchpercentage",
+            "example": 70
+          },
+          "lastNameMatchPercentage": {
+            "type": "integer",
+            "title": "Lastnamematchpercentage",
+            "example": 80
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "firstNameMatchPercentage",
+          "lastNameMatchPercentage"
+        ],
+        "title": "CustomerVerificationNameResponse"
+      },
+      "DeviceLocationResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12321"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "latitude": {
+            "type": "number",
+            "title": "Latitude",
+            "example": 50.735851
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude",
+            "example": 50.735851
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "latitude",
+          "longitude"
+        ],
+        "title": "DeviceLocationResponse"
+      },
+      "DeviceSimStatusDeviceLostStolenDateResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "stolenDate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stolendate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName"
+        ],
+        "title": "DeviceSimStatusDeviceLostStolenDateResponse"
+      },
+      "DeviceSimStatusDeviceLostStolenIndicatorResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "stolen": {
+            "type": "boolean",
+            "title": "Stolen",
+            "example": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "stolen"
+        ],
+        "title": "DeviceSimStatusDeviceLostStolenIndicatorResponse"
+      },
+      "DeviceSimStatusIMEIActivationDateResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "imeiActivationDate": {
+            "type": "string",
+            "title": "Imeiactivationdate",
+            "example": "06-24-2022"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "imeiActivationDate"
+        ],
+        "title": "DeviceSimStatusIMEIActivationDateResponse"
+      },
+      "DeviceSimStatusIMEIChangeDateResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "imeiChangeDate": {
+            "type": "string",
+            "title": "Imeichangedate",
+            "example": "06-24-2022"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "imeiChangeDate"
+        ],
+        "title": "DeviceSimStatusIMEIChangeDateResponse"
+      },
+      "DeviceSimStatusIMEILookupResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "imei": {
+            "type": "string",
+            "title": "Imei",
+            "example": "ABC12321"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "imei"
+        ],
+        "title": "DeviceSimStatusIMEILookupResponse"
+      },
+      "DeviceSimStatusIMSIActivationDateResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "imsiActivationDate": {
+            "type": "string",
+            "title": "Imsiactivationdate",
+            "example": "06-24-2022"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "imsiActivationDate"
+        ],
+        "title": "DeviceSimStatusIMSIActivationDateResponse"
+      },
+      "DeviceSimStatusIMSIChangeDateResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "imsiChangeDate": {
+            "type": "string",
+            "title": "Imsichangedate",
+            "example": "06-24-2022"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "imsiChangeDate"
+        ],
+        "title": "DeviceSimStatusIMSIChangeDateResponse"
+      },
+      "DeviceSimStatusResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "imeiActivationDate": {
+            "type": "string",
+            "title": "Imeiactivationdate",
+            "example": "06-24-2022"
+          },
+          "imeiChangeDate": {
+            "type": "string",
+            "title": "Imeichangedate",
+            "example": "06-24-2022"
+          },
+          "imei": {
+            "type": "string",
+            "title": "Imei",
+            "example": "ABC12321"
+          },
+          "imsiActivationDate": {
+            "type": "string",
+            "title": "Imsiactivationdate",
+            "example": "06-24-2022"
+          },
+          "stolen": {
+            "type": "boolean",
+            "title": "Stolen",
+            "example": false
+          },
+          "stolenDate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stolendate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "imeiActivationDate",
+          "imeiChangeDate",
+          "imei",
+          "imsiActivationDate",
+          "stolen"
+        ],
+        "title": "DeviceSimStatusResponse"
+      },
+      "GeofencingResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12321"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "verificationResult": {
+            "type": "string",
+            "title": "Verificationresult",
+            "example": "True"
+          },
+          "MatchRate": {
+            "type": "number",
+            "title": "Matchrate",
+            "example": 75.5
+          },
+          "lastLocationTime": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastlocationtime",
+            "example": "2023-09-07T10:40:52.000Z"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "carrierName",
+          "verificationResult",
+          "MatchRate"
+        ],
+        "title": "GeofencingResponse"
+      },
+      "GeofencingVerifyRequest": {
+        "properties": {
+          "msisdn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12321"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "smart"
+          },
+          "customerName": {
+            "type": "string",
+            "title": "Customername",
+            "example": "bank1"
+          },
+          "areaType": {
+            "type": "string",
+            "title": "Areatype",
+            "example": "CIRCLE"
+          },
+          "latitude": {
+            "type": "number",
+            "title": "Latitude",
+            "example": 50.735851
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude",
+            "example": 50.735851
+          },
+          "radius": {
+            "type": "integer",
+            "title": "Radius",
+            "example": 2000
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "carrierName",
+          "customerName",
+          "areaType",
+          "latitude",
+          "longitude",
+          "radius"
+        ],
+        "title": "GeofencingVerifyRequest"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InCallStateInboundCallResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "activeInboundCall": {
+            "type": "boolean",
+            "title": "Activeinboundcall",
+            "example": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "activeInboundCall"
+        ],
+        "title": "InCallStateInboundCallResponse"
+      },
+      "InCallStateOutboundCallResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "activeOutboundCall": {
+            "type": "boolean",
+            "title": "Activeoutboundcall",
+            "example": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "activeOutboundCall"
+        ],
+        "title": "InCallStateOutboundCallResponse"
+      },
+      "InCallStateResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "activeInboundCall": {
+            "type": "boolean",
+            "title": "Activeinboundcall",
+            "example": false
+          },
+          "activeOutboundCall": {
+            "type": "boolean",
+            "title": "Activeoutboundcall",
+            "example": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "activeInboundCall",
+          "activeOutboundCall"
+        ],
+        "title": "InCallStateResponse"
+      },
+      "MSISDNBasicRequestSchema": {
+        "properties": {
+          "msisdn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername"
+          },
+          "customerName": {
+            "type": "string",
+            "title": "Customername"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "carrierName",
+          "customerName"
+        ],
+        "title": "MSISDNBasicRequestSchema",
+        "example": {
+          "carrierName": "Carrier1",
+          "customerName": "Bank1",
+          "identifier": "ABC1231232132",
+          "msisdn": "+18184823383"
+        }
+      },
+      "Message": {
+        "properties": {
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message",
+            "example": "Error Details"
+          }
+        },
+        "type": "object",
+        "title": "Message"
+      },
+      "NumberRetrieveByTokenResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "devicePhoneNumber": {
+            "type": "string",
+            "title": "Devicephonenumber",
+            "example": "+18184823381"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "devicePhoneNumber"
+        ],
+        "title": "NumberRetrieveByTokenResponse"
+      },
+      "NumberRetrieveByTokenResponseGSMA": {
+        "properties": {
+          "devicePhoneNumber": {
+            "type": "string",
+            "title": "Devicephonenumber",
+            "example": "+18184823381"
+          }
+        },
+        "type": "object",
+        "required": [
+          "devicePhoneNumber"
+        ],
+        "title": "NumberRetrieveByTokenResponseGSMA"
+      },
+      "NumberVerificationResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "connectedToCarrier": {
+            "type": "boolean",
+            "title": "Connectedtocarrier",
+            "example": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "connectedToCarrier"
+        ],
+        "title": "NumberVerificationResponse"
+      },
+      "RoutingStatusCallForwardingIndicatorResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "callForwardingOn": {
+            "type": "boolean",
+            "title": "Callforwardingon",
+            "example": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "callForwardingOn"
+        ],
+        "title": "RoutingStatusCallForwardingIndicatorResponse"
+      },
+      "RoutingStatusResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "callForwardingOn": {
+            "type": "boolean",
+            "title": "Callforwardingon",
+            "example": true
+          },
+          "roaming": {
+            "type": "boolean",
+            "title": "Roaming",
+            "example": true
+          },
+          "roamingType": {
+            "type": "string",
+            "title": "Roamingtype",
+            "example": "international"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "callForwardingOn",
+          "roaming",
+          "roamingType"
+        ],
+        "title": "RoutingStatusResponse"
+      },
+      "RoutingStatusRoamingStatusResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "roaming": {
+            "type": "boolean",
+            "title": "Roaming",
+            "example": true
+          },
+          "roamingType": {
+            "type": "string",
+            "title": "Roamingtype",
+            "example": "international"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "roaming",
+          "roamingType"
+        ],
+        "title": "RoutingStatusRoamingStatusResponse"
+      },
+      "SilentAuthenticationRetrieveIPAddressResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "ipAddress": {
+            "type": "string",
+            "title": "Ipaddress",
+            "example": "192.168.1.1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "ipAddress"
+        ],
+        "title": "SilentAuthenticationRetrieveIPAddressResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ZeroTrustSilentAuthenticationVerifyIPAddressRequest": {
+        "properties": {
+          "msisdn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12321"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "customerName": {
+            "type": "string",
+            "title": "Customername",
+            "example": "bank1"
+          },
+          "ipAddress": {
+            "type": "string",
+            "title": "Ipaddress",
+            "example": "192.168.1.1"
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "carrierName",
+          "customerName",
+          "ipAddress"
+        ],
+        "title": "ZeroTrustSilentAuthenticationVerifyIPAddressRequest"
+      },
+      "ZeroTrustSilentAuthenticationVerifyIPAddressResponse": {
+        "properties": {
+          "identifier": {
+            "type": "string",
+            "title": "Identifier",
+            "example": "ABC12345"
+          },
+          "msisdn": {
+            "type": "string",
+            "title": "Msisdn",
+            "example": "+18184823381"
+          },
+          "carrierName": {
+            "type": "string",
+            "title": "Carriername",
+            "example": "Carrier1"
+          },
+          "match": {
+            "type": "boolean",
+            "title": "Match",
+            "example": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "identifier",
+          "msisdn",
+          "carrierName",
+          "match"
+        ],
+        "title": "ZeroTrustSilentAuthenticationVerifyIPAddressResponse"
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kong
+
+resources:
+  - ../base
+
+# Pin/override your image/tag at deploy-time
+images:
+  - name: us-central1-docker.pkg.dev/sherlock-004/ts43/ts43-authcode
+    newTag: v9  # change to a git SHA/tag you build
+
+patches:
+  - path: patch-env.yaml
+    target:
+      kind: Deployment
+      name: ts43-auth
