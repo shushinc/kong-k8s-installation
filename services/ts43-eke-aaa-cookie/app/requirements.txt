@@ -3,5 +3,6 @@ uvicorn[standard]
 redis
 requests
 python-multipart
+loguru
 
 

@@ -3,42 +3,43 @@ import redis
 import base64
 import datetime
 import secrets
+import logging
 from fastapi import FastAPI, Request, HTTPException
 
 app = FastAPI()
 
-# Environment variables
-REDIS_HOST = os.environ["REDIS_HOST"]
-REDIS_PORT = int(os.environ["REDIS_PORT"])
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-# Initialize Redis client WITH TLS
-redis_client = redis.Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    ssl=True,
-    decode_responses=True
-)
+# Environment variables (pero no conectamos aún)
+REDIS_HOST = os.getenv("REDIS_HOST")
+REDIS_PORT = os.getenv("REDIS_PORT")
+
+def get_redis_client():
+    if not REDIS_HOST or not REDIS_PORT:
+        raise RuntimeError("REDIS_HOST or REDIS_PORT not set")
+    return redis.Redis(
+        host=REDIS_HOST,
+        port=int(REDIS_PORT),
+        ssl=True,
+        decode_responses=True
+    )
 
 @app.get("/health")
 async def health():
-    try:
-        redis_client.ping()
-        return {"status": "ok", "redis": "connected"}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Redis error: {str(e)}")
+    return {"status": "ok"}
 
-@app.on_event("startup")
-def startup_event():
-    try:
-        redis_client.ping()
-        print("✅ Connected to Redis")
-    except Exception as e:
-        print("❌ Redis connection failed:", str(e))
-        raise
 
 @app.get("/authorize")
 async def authorize(request: Request):
-    # Token puede venir de header auth_code o query param
+    try:
+        redis_client = get_redis_client()
+        redis_client.ping()
+        logging.info("Successfully connected to Redis")
+    except Exception as e:
+        logging.error(f"Redis connection failed: {e}")
+        raise HTTPException(status_code=500, detail="Redis unavailable")
+
     token = (
         request.headers.get("auth_code")
         or request.query_params.get("authorizationToken")
@@ -53,7 +54,6 @@ async def authorize(request: Request):
 
     eapid = request.headers.get("eapid", "")
 
-    # Generar flow_id seguro
     flow_id = base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip("=")
     redis_client.setex(f"flow_id:{flow_id}", datetime.timedelta(minutes=5), token)
 
