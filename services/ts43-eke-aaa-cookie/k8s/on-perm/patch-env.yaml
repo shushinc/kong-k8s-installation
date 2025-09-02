@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ts43-auth
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: REDIS_HOST
+              value: "ts43-redis.ts43.svc.cluster.local"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-auth
+                  key: password
