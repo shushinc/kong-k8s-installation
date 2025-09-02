@@ -8,8 +8,8 @@ from fastapi import FastAPI, Request, HTTPException
 app = FastAPI()
 
 # Environment variables
-REDIS_HOST = os.getenv('REDIS_HOST', 'redis.default.svc.cluster.local')
-REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
+REDIS_HOST = os.environ["REDIS_HOST"]
+REDIS_PORT = int(os.environ["REDIS_PORT"])
 
 # Initialize Redis client WITH TLS
 redis_client = redis.Redis(
