@@ -16,7 +16,7 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install -r /app/requirements.txt
 
 # Copy the code and rename the entry file so uvicorn can import it
-COPY ts43-issue-auth-code.py /app/main.py
+COPY ts43-eke-aaa-cookie-verify.py /app/main.py
 
 # If you later add more modules/templates/static, switch to:
 # COPY app/ /app/

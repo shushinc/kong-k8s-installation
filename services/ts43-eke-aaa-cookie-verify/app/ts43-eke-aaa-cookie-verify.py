@@ -18,6 +18,10 @@ KONG_DOMAIN = os.environ.get("KONG_DOMAIN")
 SHERLOCK_BACKEND_HOST = os.environ.get("SHERLOCK_BACKEND_HOST")
 
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 def decode_flow_id(cookie_header: str):
     if "flow_id=" in cookie_header:
         for pair in cookie_header.split(";"):
