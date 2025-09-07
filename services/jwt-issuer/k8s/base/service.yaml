@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jwt-issuer-service
+  namespace: kong
+spec:
+  selector:
+    app: jwt-issuer
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080

@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # This name MUST match the target name in your kustomization.yaml
+  name: jwt-issuer
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: KONG_ADMIN_URL
+              value: "https://kong-kong-admin.kong.svc.cluster.local:8444"
+            - name: KONG_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  # This name must match the secret you create.
+                  name: jwt-issuer-secret
+                  key: secret

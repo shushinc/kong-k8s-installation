@@ -15,7 +15,5 @@ spec:
               value: "X-Forwarded-For"
             - name: KONG_REAL_IP_RECURSIVE
               value: "on"
-            # - name: KONG_ADMIN_GUI_URL
-            #   value: "http://34.61.21.100:30516"
-            # - name: KONG_ADMIN_GUI_API_URL
-            #   value: "http://34.61.21.100:32081"
+            - name: KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES
+              value: "kong.http.client"

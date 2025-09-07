@@ -126,13 +126,32 @@ cd kong-k8-installation/services/camera-auth/app
 
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v1 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v5 \
   --push .
 
 # Deploy Camera Image
-cd kong-k8-installation/services
+cd kong-k8-installation
 kubectl apply -k services/camera-auth/k8s/on-perm
 kubectl -n kong get deploy,po,svc | grep camera-auth
+
+
+# docker build and push JWT Issuer to sherlock-004:
+cd kong-k8-installation/services/jwt-issuer/app
+
+sudo docker buildx build \
+  --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/jwt-issuer:v5 \
+  --push .
+
+# Deploy jwt-issuer
+
+1. Create Fallback secret:
+  kubectl create secret generic -n kong jwt-issuer-secret --from-literal=secret=strongpassword
+2. Deployment
+cd kong-k8-installation
+kubectl apply -k services/jwt-issuer/k8s/on-perm
+kubectl -n kong get deploy,po,svc | grep jwt-issuer
+
 
 
 Deploy TS 43 Endpoint to KONG:
@@ -168,3 +187,17 @@ helm upgrade --install ts43-config ./charts/Sherlock -n kong
 Why kong shows OSS version not Enterprise:
  kubectl -n kong get helmchart.helm.cattle.io kong -o yaml | sed -n '1,160p'
     There is no image: or enterprise: keys in .spec.valuesContent, so its dfault to OSS free version. 
+
+
+
+Incase of License ISSUE:
+check kong ENV
+1.  kubectl exec -n kong  kong-kong-5476b9f9d6-tkhfh -c proxy -- printenv | grep KONG
+2. KONG_LICENSE_DATA // this should hold full license.
+
+
+Run Kong In Debug Mode:
+1. kubectl set env deploy/kong-kong KONG_LOG_LEVEL=debug -n kong
+2. kubectl rollout restart deployment kong-kong -n kong
+3. kubectl rollout status deploy/kong-kong -n kong 
+4. kubectl logs deploy/kong-kong -c proxy -f -n kong 

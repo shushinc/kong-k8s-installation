@@ -1,8 +1,83 @@
 _format_version: "3.0"
 services:
-- host: ts43-auth-backend.kong.svc.cluster.local
-  id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf83
-  name: ts43
+- name: camera-auth-service
+    # The host must match the Kubernetes Service name for your microservice.
+  host: camera-auth-service.kong.svc.cluster.local # Corrected to match your service name
+  port: 80 
+  protocol: http
+  tags: [auth, camera]
+  routes:
+  # This route exposes your service to the outside world via Kong.
+    - name: camera-authorizer-route
+      paths:
+        - /camera/authorizer
+      strip_path: true # IMPORTANT: This removes /camera/authorizer before forwarding
+      tags: [auth, camera]
+
+# ADDED: A new service dedicated to handling the OAuth2 flow with plugins
+- name: oauth-provider
+  id: 1a1a1a1a-2b2b-3c3c-4d4d-5e5e5e5e5e5e
+  host: 127.0.0.1 
+  tags: [oauth]
+  plugins:
+    - name: oauth2
+      config:
+        scopes:
+          - sherlockapiresource/write
+        global_credentials: true
+        provision_key: OAuth-Token-Dispenser-Key
+        enable_authorization_code: true
+        enable_client_credentials: true       
+        accept_http_if_already_terminated: true
+        pkce: lax                          
+        
+  routes:
+    # /oauth2/authorize (GET/POST)
+    - name: oauth-provider-authorize
+      id: 2e2e2e2e-3f3f-4a4a-5b5b-6c6c6c6c6c6c
+      paths: [ /oauth2/authorize ]
+      methods: [ GET, POST ]
+
+    # /oauth2/token (POST)
+    - name: oauth-provider-token
+      id: 6f6f6f6f-7a7a-8b8b-9c9c-1d1d1d1d1d1d
+      paths: [ /oauth2/token ]
+      methods: [ POST ]
+
+#ADDED: Service that exchange the JWT token for opaque auth code, for Number verify, phonenumner to be in JWT claim.
+- name: jwt-issuer-service
+  host: jwt-issuer-service.kong.svc.cluster.local # A mock upstream is fine, as plugins run before the request is proxied.
+  path: / 
+  protocol: http
+  port: 80
+  tags: [jwt, auth]
+  routes:
+    - name: jwt-issuer-route
+      paths:
+        - /issue-jwt
+      methods: [ GET ]
+      strip_path: true
+      plugins:
+        # Step 1: Validate the incoming opaque Bearer token from the client. note i need to create consumer accordingly.
+        - name: oauth2
+          config:
+            provision_key: OAuth-Token-Dispenser-Key
+            enable_authorization_code: true
+            global_credentials: true
+            scopes:
+              - sherlockapiresource/write
+            accept_http_if_already_terminated: true
+
+        # Step 2: Capture the 'login_hint' query parameter and create the  heade, need to semd login_hint again the 2nd token req.
+        - name: request-transformer
+          config:
+            add:
+              headers:
+              - "X-Login-Hint:$(query_params.login_hint)"
+
+- host: ts43-eke-aaa-cookie.kong.svc.cluster.local
+  id: de1643db-2ca0-4011-b967-8df7f845d07b
+  name: ts43-cookie
   path: /
   protocol: http
   port: 80
@@ -12,27 +87,29 @@ services:
   read_timeout: 60000
   tags: [TS43]
   routes:
-  - id: fdc49bc0-8190-4057-b495-db4694bcd892
+  - id: f34b2152-b04e-5b80-9d78-8d096ce1f823
     methods:
     - POST
-    name: oauth2-token
+    name: sherlock-api_challenge-ts43-client-v2-authenticate-ts43-client-post
     paths:
-    - /oauth2/token
-    plugins:
-      - name: oauth2
-        config:
-          scopes:
-          - sherlockapiresource/write
-          global_credentials: true 
-          provision_key: OAuth Token Dispencer
-          enable_client_credentials: true 
-          enable_authorization_code: true
-          accept_http_if_already_terminated: true
+    - ~/v2/authenticate_ts43_client
+    plugins: []
     regex_priority: 200
     strip_path: false
     tags: [TS43]
-    service:
-      id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf83
+
+- host: ts43-auth-backend.kong.svc.cluster.local
+  id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf83
+  name: ts43-auth
+  path: /
+  protocol: http
+  port: 80
+  retries: 3
+  connect_timeout: 60000
+  write_timeout: 60000
+  read_timeout: 60000
+  tags: [TS43]
+  routes:
   - id: 82c90817-0bd4-5472-aa79-870d0438732e
     methods:
     - POST
@@ -77,102 +154,7 @@ services:
     tags: [TS43]
 
       # POST /v2/authenticate_ts43_client (challenge)
-  - id: f34b2152-b04e-5b80-9d78-8d096ce1f823
-    methods:
-    - POST
-    name: sherlock-api_challenge-ts43-client-v2-authenticate-ts43-client-post
-    paths:
-    - ~/v2/authenticate_ts43_client
-    plugins: []
-    regex_priority: 200
-    strip_path: false
-    tags: [TS43]
   
-- host: camera-auth-service.kong.svc.cluster.local
-  id: 04e4404f-e7ad-4c80-a7ca-fbe4fb348e42
-  name: camera
-  path: /
-  protocol: http
-  port: 80
-  retries: 3
-  connect_timeout: 60000
-  write_timeout: 60000
-  read_timeout: 60000
-  tags: [camera]  
-  routes:
-  # NEW OAUTH2 TOKEN ENDPOINT MANAGED BY KONG
-  - id: 1b9d7c6e-2f3a-4b5d-8c6a-7b8d9e0f1a2b # New Unique ID
-    methods:
-    - POST
-    name: camera-oauth2-token
-    paths:
-    - /oauth2/token
-    plugins:
-      - name: oauth2
-        config:
-          global_credentials: true
-          provision_key: OAuth Token Dispencer
-          enable_client_credentials: true
-          enable_authorization_code: true
-          token_expiration: 3600
-          auth_header_name: Authorization
-          accept_http_if_already_terminated: true
-    strip_path: false
-    tags: [camera]
-  # NEW OAUTH2 AUTHORIZATION ENDPOINT MANAGED BY KONG
-  - id: 2c8e6f5d-1a2b-3c4d-5e6f-7a8b9c0d1e2f # New Unique ID
-    methods:
-    - GET
-    - POST
-    name: camera-oauth2-authorize
-    paths:
-    - /oauth2/authorize
-    plugins:
-      - name: oauth2 # Same plugin config as the token endpoint
-        config:
-          global_credentials: true
-          provision_key: OAuth Token Dispencer
-          enable_client_credentials: true
-          enable_authorization_code: true
-          token_expiration: 3600
-          auth_header_name: Authorization
-          accept_http_if_already_terminated: true
-    strip_path: false
-    tags: [camera]
-
-  - id: 3106e0d9-a190-4762-9d28-2295ca78b708
-    methods:
-    - POST
-    name: camera-token
-    paths:
-    - /token
-    plugins: []
-    regex_priority: 200
-    strip_path: false
-    tags: [camera]
-
-  - id: 83a989ff-3d7e-495c-ac1c-3951b69a2f82
-    methods:
-    - GET
-    name: camera-GET-authorizer
-    paths:
-    - /authorizer
-    plugins: []
-    regex_priority: 200
-    strip_path: false
-    tags: [camera]
-
-  - id: b724dbd6-c95a-4d26-8491-61abf4706534
-    methods:
-    - POST
-    name: camera-POST-authorizer
-    paths:
-    - /authorizer
-    plugins: []
-    regex_priority: 200
-    strip_path: false
-    tags: [camera]
-
 - host: 34.54.169.57
   id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
   name: sherlock-api
@@ -574,8 +556,18 @@ services:
     - GET
     name: sherlock-api_number-verification-retrieve-number-by-token-number-verification-v0-retrieve-phone-number-get
     paths:
-    - ~/number-verification/v0/retrieve_phone_number$
-    plugins: []
+    - ~/number-verification/v0/retrieve_phone_number
+    plugins:
+    - name: jwt
+      config:
+        key_claim_name: iss
+        claims_to_verify: [ exp ]
+        run_on_preflight: true
+    - name: request-transformer
+      config:
+        rename:
+          headers:
+          - X-Credential-Jwt-Claim-login_hint:phonenumber
     regex_priority: 200
     strip_path: false
     tags: [sherlock]
@@ -587,7 +579,16 @@ services:
     name: sherlock-api_number-verification-verify-number-number-verification-v0-verify-number-post
     paths:
     - ~/number-verification/v0/verify-number$
-    plugins: []
+    plugins: 
+      - name: oauth2
+        config:
+          provision_key: OAuth-Token-Dispenser-Key
+          scopes:
+          - sherlockapiresource/write 
+          global_credentials: true 
+          enable_authorization_code: true 
+          enable_client_credentials: true
+          accept_http_if_already_terminated: true
     regex_priority: 200
     strip_path: false
     tags: [sherlock]
@@ -598,8 +599,18 @@ services:
     - POST
     name: sherlock-api_number-verification-verify-number-by-token-number-verification-v0-verify-phone-number-post
     paths:
-    - ~/number-verification/v0/verify_phone_number$
-    plugins: []
+    - ~/number-verification/v0/verify_phone_number
+    plugins:
+    - name: jwt
+      config:
+        key_claim_name: iss
+        claims_to_verify: [ exp ]
+        run_on_preflight: true
+    - name: request-transformer
+      config:
+        rename:
+          headers:
+          - X-Credential-Jwt-Claim-login_hint:phonenumber
     regex_priority: 200
     strip_path: false
     tags: [sherlock]
@@ -647,7 +658,16 @@ services:
     name: sherlock-api_silent-authentication-retrieve-ip-address-silent-authentication-v0-retrieve-ip-address-post
     paths:
     - ~/silent-authentication/v0/retrieve-ip-address$
-    plugins: []
+    plugins:
+      - name: oauth2
+        config:
+          provision_key: OAuth-Token-Dispenser-Key
+          scopes:
+          - sherlockapiresource/write 
+          global_credentials: true 
+          enable_authorization_code: true 
+          enable_client_credentials: true
+          accept_http_if_already_terminated: true
     regex_priority: 200
     strip_path: false
     tags: [sherlock]
@@ -659,7 +679,16 @@ services:
     name: sherlock-api_silent-authentication-verify-ip-address-silent-authentication-v0-verify-ip-address-post
     paths:
     - ~/silent-authentication/v0/verify-ip-address$
-    plugins: []
+    plugins:
+      - name: oauth2
+        config:
+          provision_key: OAuth-Token-Dispenser-Key
+          scopes:
+          - sherlockapiresource/write 
+          global_credentials: true 
+          enable_authorization_code: true 
+          enable_client_credentials: true
+          accept_http_if_already_terminated: true
     regex_priority: 200
     strip_path: false
     tags: [sherlock]
@@ -684,5 +713,11 @@ consumers:
     tags: []
     oauth2_credentials:
       - name: test-app
-        client_id: "test"       # <-- set your actual values
+        client_id: "test"       
         client_secret: "test"
+        redirect_uris: 
+          - https://oauth.pstmn.io/v1/callback
+    jwt_secrets:
+      - key: test-app-issuer 
+        algorithm: HS256
+        secret: strongpassword #since im testing, lets use HS256, dont need for any privates ans public keys

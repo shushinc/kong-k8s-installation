@@ -1,5 +1,7 @@
-fastapi==0.115.0
-uvicorn==0.30.6
-boto3==1.35.27
-redis==5.0.8
-requests==2.32.3
+fastapi
+uvicorn[standard]
+httpx
+python-multipart
+boto3
+redis
+requests
