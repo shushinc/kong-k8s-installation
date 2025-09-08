@@ -29,9 +29,8 @@ def get_redis_client():
 async def health():
     return {"status": "ok"}
 
-
-@app.get("/authorize")
-async def authorize(request: Request):
+@app.get("/v2/authenticate_ts43_client")
+async def authenticate_ts43_client(request: Request):
     try:
         redis_client = get_redis_client()
         redis_client.ping()
