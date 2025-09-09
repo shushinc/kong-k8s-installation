@@ -8,7 +8,7 @@ resources:
 
 images:
   - name: us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth 
-    newTag: v1 
+    newTag: v11
 
 patches:
   - path: patch-env.yaml

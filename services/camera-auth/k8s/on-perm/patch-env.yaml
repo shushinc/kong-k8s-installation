@@ -17,3 +17,7 @@ spec:
                 secretKeyRef:
                   name: redis-auth
                   key: password
+            - name: KONG_INTERNAL_OAUTH_URL
+              value: "https://kong-kong-proxy.kong.svc.cluster.local:443"
+            - name: EXTERNAL_AUTH_URL
+              value: "http://34.54.169.57/v0/authenticate_user" #Update here sherlock LB

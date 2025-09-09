@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+redis
+requests
+python-multipart 
+PyJWT==2.8.0
+httpx
+boto3
