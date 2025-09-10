@@ -1,21 +1,36 @@
-apiVersion: helm.cattle.io/v1
-kind: HelmChart
+apiVersion: apps/v1
+kind: StatefulSet
 metadata:
-  name: kong-pg
-  namespace: kong
+  name: postgres-kong
 spec:
-  chart: postgresql
-  repo: https://charts.bitnami.com/bitnami
-  targetNamespace: kong
-  # pin if you want: version: 15.5.3
-  valuesContent: |-
-    auth:
-      postgresPassword: "supersecret-postgres"   # admin 'postgres'
-      username: "kong"                           # app user
-      password: "supersecret-kong"
-      database: "kong"
+  serviceName: postgres-kong
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-kong
+  template:
+    metadata:
+      labels:
+        app: postgres-kong
+    spec:
+      containers:
+        - name: postgres
+          image: public.ecr.aws/bitnami/postgresql:17
+          ports:
+            - containerPort: 5432
+              name: postgres
+          envFrom:
+            - configMapRef:
+                name: postgres-config
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-storage
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 20Gi
 
-    primary:
-      persistence:
-        enabled: true
-        size: 8Gi
