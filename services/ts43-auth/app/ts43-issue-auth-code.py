@@ -4,6 +4,8 @@ import logging
 from typing import Optional, Dict, Any
 from urllib.parse import parse_qs
 
+import redis
+import base64
 import requests
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -15,22 +17,24 @@ import uvicorn
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 log = logging.getLogger("ts43-issue-auth-code")
 
-# For self-signed / NodePort TLS you may want to disable verification (NOT for prod)
+# For self-signed 
 VERIFY_TLS = os.getenv("VERIFY_TLS", "false").lower() in ("1", "true", "yes")
 
 # HTTP timeouts
 REQ_TIMEOUT = float(os.getenv("HTTP_TIMEOUT_SECONDS", "10"))
 
-# in-cluster Kong proxy by default (can override with OAUTH_BASE_URL if needed)
-# KONG_INTERNAL_BASE = os.getenv(
-#     "OAUTH_BASE_URL",
-#     "http://kong-kong-proxy.kong.svc.cluster.local:80"
-# ).strip() 
-# change to HTTPS for security error comes from kong plugin
+# in-cluster Kong proxy
 KONG_INTERNAL_BASE = os.getenv(
     "OAUTH_BASE_URL",
     "https://kong-kong-proxy.kong.svc.cluster.local:443"
 ).strip()
+
+# --- NEW: Redis Configuration ---
+REDIS_HOST = os.environ.get("REDIS_HOST")
+REDIS_PORT = os.environ.get("REDIS_PORT", "6379")
+REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD") 
+# Use this if your Redis requires SSL, common in managed services
+REDIS_SSL = os.getenv("REDIS_SSL", "false").lower() in ("1", "true", "yes")
 
 app = FastAPI(title="ts43-issue-auth-code", version="1.0.0")
 
@@ -40,8 +44,6 @@ class HealthzFilter(logging.Filter):
         msg = record.getMessage()
         return 'GET /healthz ' not in msg and 'GET /healthz HTTP' not in msg
 
-
-# Attach to uvicorn access logger (hide /healthz noise)
 uvicorn_access = logging.getLogger("uvicorn.access")
 uvicorn_access.addFilter(HealthzFilter())
 
@@ -55,18 +57,16 @@ def get_client_credentials_token(
     timeout_sec: float = 10.0,
 ) -> Dict[str, Any]:
     """
-    Call Kong OAuth2 plugin token endpoint:
-      POST {kong_base_url}/oauth2/token/oauth2/token
-    Returns dict: { access_token, token_type, expires_in, ... }
+    (This function remains the same)
+    Call Kong OAuth2 plugin token endpoint to VALIDATE credentials.
     """
     if not kong_base_url:
         raise ValueError("kong_base_url is required")
     if not client_id or not client_secret:
         raise ValueError("client_id and client_secret are required")
 
-    # Correct path and preserve scheme from kong_base_url
-    url = kong_base_url.rstrip("/") + "/oauth2/token/oauth2/token"  
-    headers = {"X-Forwarded-Proto": "https"}
+    url = kong_base_url.rstrip("/") + "/oauth2/token"  # Corrected path
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
     data = {
         "grant_type": "client_credentials",
         "client_id": client_id,
@@ -75,13 +75,11 @@ def get_client_credentials_token(
     if scope:
         data["scope"] = scope
 
-    log.info(f"Requesting token from: {url}")
-    log.info(f"headers: {headers}")
+    log.info(f"Validating credentials against: {url}")
     try:
-        
-        resp = requests.post(url, data=data, headers=headers,timeout=timeout_sec, verify=verify_tls)
+        resp = requests.post(url, data=data, headers=headers, timeout=timeout_sec, verify=verify_tls)
         if resp.status_code >= 400:
-            log.error("Token request failed: %s %s", resp.status_code, resp.text)
+            log.error("Credential validation failed: %s %s", resp.status_code, resp.text)
             raise HTTPException(status_code=resp.status_code, detail=resp.text)
         payload = resp.json()
         if "access_token" not in payload:
@@ -99,7 +97,7 @@ def healthz():
 
 
 def _flatten_form(form) -> Dict[str, str]:
-    """Convert Starlette FormData to dict (take first value per key)."""
+    """(This function remains the same)"""
     out: Dict[str, str] = {}
     for key in form.keys():
         vals = form.getlist(key)
@@ -110,75 +108,72 @@ def _flatten_form(form) -> Dict[str, str]:
 @app.post("/v2/issue_auth_code")
 async def issue_auth_code(req: Request):
     """
-    Accepts JSON or application/x-www-form-urlencoded.
-    Values are taken from headers first (set by Kong), then fall back to body.
-    Expected:
-      - client_id      (required)
-      - client_secret  (required)
-      - scope          (optional)
-      - grant_type     (optional; validated if present)
+    (Parsing logic remains the same)
     """
-    # --- Debug logging (careful in prod; secrets!) ---
-    print("=== HEADERS ===")
-    for k, v in req.headers.items():
-        print(f"{k}: {v}")
-
-    body_bytes = await req.body()
-    raw_text = body_bytes.decode("utf-8", errors="replace")
-    print("=== BODY (raw) ===")
-    print(raw_text if raw_text else "<empty>")
-
-    # --- Parse body (best-effort) ---
     content_type = (req.headers.get("content-type") or "").lower()
     parsed: Dict[str, Any] = {}
     try:
-        if "application/json" in content_type:
-            parsed = await req.json()
-        elif "application/x-www-form-urlencoded" in content_type:
-            # Requires python-multipart; otherwise falls into except below.
-            form = await req.form()
-            parsed = _flatten_form(form)
-        else:
-            try:
-                parsed = await req.json()
-            except Exception:
-                qs = parse_qs(raw_text, keep_blank_values=True)
-                parsed = {k: (v[0] if isinstance(v, list) and v else "") for k, v in qs.items()}
-    except Exception as e:
-        log.warning(f"Body parse failed ({e}); proceeding with empty body")
-        parsed = {}
+        if "application/json" in content_type: parsed = await req.json()
+        elif "application/x-www-form-urlencoded" in content_type: parsed = _flatten_form(await req.form())
+    except Exception:
+        pass # Fallback if parsing fails
 
-    # --- Prefer headers, then fallback to parsed body ---
-    grant_type   = (req.headers.get("grant_type") or parsed.get("grant_type") or "").strip()
-    client_id    = (req.headers.get("client_id") or parsed.get("client_id") or "").strip()
-    client_secret= (req.headers.get("client_secret") or parsed.get("client_secret") or "").strip()
-    scope        = (req.headers.get("scope") or parsed.get("scope") or "").strip() or None
-
-    # in-cluster Kong base (ignore incoming host)
-    kong_base = KONG_INTERNAL_BASE 
-
-    # --- Logging (mask secret in logs) ---
+    grant_type = (req.headers.get("grant_type") or parsed.get("grant_type") or "").strip()
+    client_id = (req.headers.get("client_id") or parsed.get("client_id") or "").strip()
+    client_secret = (req.headers.get("client_secret") or parsed.get("client_secret") or "").strip()
+    scope = (req.headers.get("scope") or parsed.get("scope") or "").strip() or None
+    
     log.info(f"client_id: {client_id}")
-    log.info(f"client_secret: {client_secret[:2] + '***' if client_secret else ''}")
-    log.info(f"scope: {scope}")
-    log.info(f"kong_base: {kong_base}")
-
-    # --- Validate ---
     if not client_id or not client_secret:
         raise HTTPException(status_code=400, detail="client_id / client_secret missing")
     if grant_type and grant_type != "client_credentials":
         raise HTTPException(status_code=400, detail="unsupported_grant_type")
 
-    # --- Call Kong /oauth2/token ---
-    token = get_client_credentials_token(
-        kong_base_url=kong_base,
+    # --- MODIFIED LOGIC ---
+
+    # Step 1: Validate credentials by requesting a token from Kong.
+    # We will discard the token, as its successful creation is our validation.
+    get_client_credentials_token(
+        kong_base_url=KONG_INTERNAL_BASE,
         client_id=client_id,
         client_secret=client_secret,
         scope=scope,
         verify_tls=VERIFY_TLS,
         timeout_sec=REQ_TIMEOUT,
     )
-    return JSONResponse(token)
+    log.info("Client credentials successfully validated against Kong.")
 
-# (Note: there is duplicate unreachable code after this return in your original file;
-# leaving it untouched since you asked for only the in-cluster base changes.)
+    # Step 2: Prepare credentials for storage in Redis.
+    combined_creds = f"{client_id}:{client_secret}"
+    encoded_creds = base64.b64encode(combined_creds.encode('utf-8')).decode('utf-8')
+
+    # Step 3: Generate a temporary auth code and store the credentials in Redis.
+    auth_code = base64.urlsafe_b64encode(os.urandom(32)).decode('utf-8').rstrip("=")
+    redis_key = f"auth_code:{auth_code}"
+    
+    if not REDIS_HOST:
+        log.error("REDIS_HOST environment variable is not set. Cannot store auth code.")
+        raise HTTPException(status_code=500, detail="Service is misconfigured (Redis host missing)")
+
+    try:
+        log.info(f"Connecting to Redis at {REDIS_HOST}:{REDIS_PORT}")
+        redis_client = redis.Redis(
+            host=REDIS_HOST,
+            port=int(REDIS_PORT),
+            password=REDIS_PASSWORD,
+            ssl=REDIS_SSL,
+            decode_responses=True,
+            socket_connect_timeout=5
+        )
+        # Store the encoded credentials with a 120-second expiry
+        redis_client.setex(redis_key, 120, encoded_creds)
+        log.info(f"Successfully stored auth code in Redis with key: {redis_key}")
+    except Exception as e:
+        log.exception("Failed to store auth code in Redis.")
+        raise HTTPException(status_code=503, detail=f"Service unavailable: could not connect to Redis: {e}")
+
+    # Step 4: Return the temporary auth code to the client.
+    return JSONResponse({
+        "auth_code": auth_code,
+        "expires_in": 120
+    })

@@ -20,7 +20,7 @@ spec:
     env:
       # DB-mode (OAuth2 needs DB)
       database: "postgres"
-      pg_host: "kong-pg-postgresql.kong.svc.cluster.local"
+      pg_host: "postgres-kong.kong.svc.cluster.local"
       pg_port: 5432
       pg_user: "kong"
       pg_password: "supersecret-kong"
