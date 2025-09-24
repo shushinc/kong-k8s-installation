@@ -19,8 +19,10 @@ spec:
           command: ["sh","-lc"]
           args:
             - |
-              export REDIS_PASSWORD=$(cat /secrets/password);
-              exec redis-server /usr/local/etc/redis/redis.conf
+              cp /usr/local/etc/redis/redis.conf /tmp/redis.conf && \
+              PASSWORD=$(cat /secrets/password) && \
+              sed -i "s/\${REDIS_PASSWORD}/$PASSWORD/" /tmp/redis.conf && \
+              exec redis-server /tmp/redis.conf
           ports:
             - containerPort: 6379
           env:

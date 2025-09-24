@@ -1,0 +1,11 @@
+# ./apps/kong/on-perm/patch-security-context.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong-kong
+  namespace: kong
+spec:
+  template:
+    spec:
+      securityContext:
+        fsGroup: 1001

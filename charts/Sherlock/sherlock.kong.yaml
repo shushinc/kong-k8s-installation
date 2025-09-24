@@ -11,8 +11,27 @@ services:
     - name: camera-authorizer-route
       paths:
         - /camera/authorizer
-      strip_path: true # IMPORTANT: This removes /camera/authorizer before forwarding
+      strip_path: true
       tags: [auth, camera]
+      # This plugin is added to set the correct upstream path.
+      plugins:
+        - name: request-transformer
+          config:
+            replace:
+              # After stripping, this sets the path to /authorizer for your FastAPI app.
+              uri: "/authorizer"
+    - name: camera-token-route
+      paths:
+        - /camera/token
+      strip_path: true
+      tags: [auth, camera]
+      # This plugin is added to set the correct upstream path.
+      plugins:
+        - name: request-transformer
+          config:
+            replace:
+              # After stripping, this sets the path to /token for your FastAPI app.
+              uri: "/token"        
 
 # ADDED: A new service dedicated to handling the OAuth2 flow with plugins
 - name: oauth-provider
@@ -75,7 +94,7 @@ services:
               headers:
               - "X-Login-Hint:$(query_params.login_hint)"
 
-- host: ts43-eke-aaa-cookie.kong.svc.cluster.local
+- host: cookie-generator-service.kong.svc.cluster.local
   id: de1643db-2ca0-4011-b967-8df7f845d07b
   name: ts43-cookie
   path: /
@@ -88,8 +107,7 @@ services:
   tags: [TS43]
   routes:
   - id: f34b2152-b04e-5b80-9d78-8d096ce1f823
-    methods:
-    - POST
+    methods: [ GET, POST ]
     name: sherlock-api_challenge-ts43-client-v2-authenticate-ts43-client-post
     paths:
     - ~/v2/authenticate_ts43_client
@@ -97,64 +115,21 @@ services:
     regex_priority: 200
     strip_path: false
     tags: [TS43]
-
-- host: ts43-auth-backend.kong.svc.cluster.local
-  id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf83
-  name: ts43-auth
-  path: /
-  protocol: http
-  port: 80
-  retries: 3
-  connect_timeout: 60000
-  write_timeout: 60000
-  read_timeout: 60000
-  tags: [TS43]
-  routes:
-  - id: 82c90817-0bd4-5472-aa79-870d0438732e
-    methods:
-    - POST
-    name: sherlock-api_v2-issue-auth-code_post
-    paths:
-    - ~/v2/issue_auth_code
-    plugins:
-      - name: pre-function
-        config:
-          access:
-            - |
-                  -- Read body (supports application/x-www-form-urlencoded)
-                  local body = kong.request.get_body() or {}
-                  -- Set dynamic headers to upstream
-                  if body.grant_type then kong.service.request.set_header("grant_type", body.grant_type) end
-                  if body.client_id then kong.service.request.set_header("client_id", body.client_id) end
-                  if body.client_secret then kong.service.request.set_header("client_secret", body.client_secret) end
-                  if body.scope then kong.service.request.set_header("scope", body.scope) end
-                  -- Capture what client used to reach Kong
-                  local host = kong.request.get_forwarded_host()
-                  local port = kong.request.get_forwarded_port()
-
-                  -- Send it upstream as a header
-                  if host and port then
-                    kong.service.request.set_header("kong_base_url", "https://" .. host .. ":" .. port)
-                  end
-    regex_priority: 200
-    strip_path: false
-    tags: [TS43]
     service:
-        id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf83
-      # GET /v2/authenticate_ts43_client
-  - id: 2e6acf9f-7892-5cc6-b8a4-39769531bbab
-    methods:
-    - GET
-    name: sherlock-api_authenticate-ts43-client-v2-authenticate-ts43-client-get
+        id: de1643db-2ca0-4011-b967-8df7f845d07b
+  
+  - id: 9f8c8c2e-3c9b-4c8e-9f3b-2b4f6d7a2c91
+    methods: [ GET ]
+    name: sherlock-api_-ts43-client-v2-issue-JWT
     paths:
-    - ~/v2/authenticate_ts43_client
+    - ~/v2/ts43_operator_token
     plugins: []
     regex_priority: 200
     strip_path: false
     tags: [TS43]
+    service:
+        id: de1643db-2ca0-4011-b967-8df7f845d07b
 
-      # POST /v2/authenticate_ts43_client (challenge)
-  
 - host: 34.54.169.57
   id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
   name: sherlock-api
@@ -563,11 +538,34 @@ services:
         key_claim_name: iss
         claims_to_verify: [ exp ]
         run_on_preflight: true
-    - name: request-transformer
+    - name: pre-function
       config:
-        rename:
-          headers:
-          - X-Credential-Jwt-Claim-login_hint:phonenumber
+        access:
+          - |
+            return function()
+            local auth = kong.request.get_header("authorization")
+            if not auth then return end
+            local token = auth:match("Bearer%s+(.+)")
+            if not token then return end
+
+            -- extract base64url payload (middle segment)
+            local payload_b64 = token:match("%.(.-)%.")
+            if not payload_b64 then return end
+
+            -- base64url -> base64 (replace chars + pad)
+            payload_b64 = payload_b64:gsub("-", "+"):gsub("_", "/")
+            local pad = #payload_b64 % 4
+            if pad > 0 then payload_b64 = payload_b64 .. string.rep("=", 4 - pad) end
+
+            local payload_json = ngx.decode_base64(payload_b64)
+            if not payload_json then return end
+
+            -- find "login_hint":"<value>" without JSON libs
+            local login_hint = payload_json:match([["login_hint"%s*:%s*"(.-)"]])
+            if login_hint and #login_hint > 0 then
+              kong.service.request.set_header("phonenumber", login_hint)
+            end
+            end
     regex_priority: 200
     strip_path: false
     tags: [sherlock]
@@ -606,11 +604,34 @@ services:
         key_claim_name: iss
         claims_to_verify: [ exp ]
         run_on_preflight: true
-    - name: request-transformer
+    - name: pre-function
       config:
-        rename:
-          headers:
-          - X-Credential-Jwt-Claim-login_hint:phonenumber
+        access:
+          - |
+            return function()
+            local auth = kong.request.get_header("authorization")
+            if not auth then return end
+            local token = auth:match("Bearer%s+(.+)")
+            if not token then return end
+
+            -- extract base64url payload (middle segment)
+            local payload_b64 = token:match("%.(.-)%.")
+            if not payload_b64 then return end
+
+            -- base64url -> base64 (replace chars + pad)
+            payload_b64 = payload_b64:gsub("-", "+"):gsub("_", "/")
+            local pad = #payload_b64 % 4
+            if pad > 0 then payload_b64 = payload_b64 .. string.rep("=", 4 - pad) end
+
+            local payload_json = ngx.decode_base64(payload_b64)
+            if not payload_json then return end
+
+            -- find "login_hint":"<value>" without JSON libs
+            local login_hint = payload_json:match([["login_hint"%s*:%s*"(.-)"]])
+            if login_hint and #login_hint > 0 then
+              kong.service.request.set_header("phonenumber", login_hint)
+            end
+            end
     regex_priority: 200
     strip_path: false
     tags: [sherlock]
@@ -706,6 +727,96 @@ services:
     tags: [sherlock]
     service:
           id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 9e9e43b0-93e6-4f73-b4d4-54d2cb0e25e6
+    methods:
+    - POST
+    name: sherlock-api_ts43-retrieve-phone-number-v2-post
+    paths:
+    - ~/silent-authentication/v2/ts43-retrieve-phone-number$
+    plugins:
+    - name: jwt
+      config:
+        key_claim_name: iss
+        claims_to_verify: [ exp ]
+        run_on_preflight: true
+    - name: pre-function
+      config:
+        access:
+          - |
+            return function()
+            local auth = kong.request.get_header("authorization")
+            if not auth then return end
+            local token = auth:match("Bearer%s+(.+)")
+            if not token then return end
+
+            -- extract base64url payload (middle segment)
+            local payload_b64 = token:match("%.(.-)%.")
+            if not payload_b64 then return end
+
+            -- base64url -> base64 (replace chars + pad)
+            payload_b64 = payload_b64:gsub("-", "+"):gsub("_", "/")
+            local pad = #payload_b64 % 4
+            if pad > 0 then payload_b64 = payload_b64 .. string.rep("=", 4 - pad) end
+
+            local payload_json = ngx.decode_base64(payload_b64)
+            if not payload_json then return end
+
+            -- find "login_hint":"<value>" without JSON libs
+            local login_hint = payload_json:match([["login_hint"%s*:%s*"(.-)"]])
+            if login_hint and #login_hint > 0 then
+              kong.service.request.set_header("imsi", login_hint)
+            end
+            end
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock, ts43, silent-authentication]
+    service:
+      id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 2c8e45a9-8fb0-4e3f-9f6a-7204c63e80e7
+    methods:
+    - POST
+    name: sherlock-api_ts43-verify-phone-number-v2-post
+    paths:
+    - ~/silent-authentication/v2/ts43-verify-phone-number$
+    plugins:
+    - name: jwt
+      config:
+        key_claim_name: iss
+        claims_to_verify: [ exp ]
+        run_on_preflight: true
+    - name: pre-function
+      config:
+        access:
+          - |
+            return function()
+            local auth = kong.request.get_header("authorization")
+            if not auth then return end
+            local token = auth:match("Bearer%s+(.+)")
+            if not token then return end
+
+            -- extract base64url payload (middle segment)
+            local payload_b64 = token:match("%.(.-)%.")
+            if not payload_b64 then return end
+
+            -- base64url -> base64 (replace chars + pad)
+            payload_b64 = payload_b64:gsub("-", "+"):gsub("_", "/")
+            local pad = #payload_b64 % 4
+            if pad > 0 then payload_b64 = payload_b64 .. string.rep("=", 4 - pad) end
+
+            local payload_json = ngx.decode_base64(payload_b64)
+            if not payload_json then return end
+
+            -- find "login_hint":"<value>" without JSON libs
+            local login_hint = payload_json:match([["login_hint"%s*:%s*"(.-)"]])
+            if login_hint and #login_hint > 0 then
+              kong.service.request.set_header("imsi", login_hint)
+            end
+            end
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock, ts43, silent-authentication]
+    service:
+      id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
 upstreams: []
 
 consumers:

@@ -1,0 +1,6 @@
+us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v20
+us-central1-docker.pkg.dev/sherlock-004/ts43/cookie-generator-service:v16
+us-central1-docker.pkg.dev/sherlock-004/ts43/jwt-issuer:v5
+us-central1-docker.pkg.dev/sherlock-004/ts43/ts43-authcode:v11
+us-central1-docker.pkg.dev/sherlock-004/ts43/ts43-eke-aaa-cookie:v6
+docker.io/library/redis:7.2-alpine

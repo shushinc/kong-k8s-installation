@@ -38,7 +38,7 @@ kubectl -n kong get pods,svc -l app.kubernetes.io/name=postgresql
 Quick DB test
 kubectl -n kong run psql-client --rm -it --image=postgres:15 --restart=Never \
   --env=PGPASSWORD=supersecret-kong -- \
-  psql "host=kong-pg-postgresql.kong.svc.cluster.local port=5432 dbname=kong user=kong" \
+  psql "host=postgres-kong.kong.svc.cluster.local port=5432 dbname=kong user=kong" \
   -c "select now(), current_user, current_database();"
 
 # Add the Enterprise License
@@ -60,8 +60,12 @@ In the folder containing apps/kong/on-perm/deployment-patch.yaml (HelmChart) con
   3. NodePorts for Proxy/Admin/Manager
   4. Migrations enabled
 
-Apply:
+Add the change the helm configuration here:
+  1. pg_host
+  2. admin_gui_url
+  3. admin_gui_api_url
 
+Apply:
 kubectl apply -n kong -k apps/kong/on-perm
 
 CHeck for Ports 
@@ -106,13 +110,25 @@ curl -I https://<NODE_PUBLIC_IP>:32080/
 kubectl apply -k ts43-redis/k8s/on-perm
 kubectl -n kong get pods,svc | grep ts43-redis
 
+# docker build and push cookie-generator-service  Image to sherlock-004:
+cd kong-k8-installation/services/cookie-generator-service/app
+
+sudo docker buildx build \
+  --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/cookie-generator-service:v8 \
+  --push .
+
+cd kong-k8-installation
+kubectl apply -k services/cookie-generator-service/k8s/on-perm
+
+kubectl -n kong get deploy,po,svc | grep cookie-generator-service
 
 # docker build and push TS43 Authe code Image to sherlock-004:
 cd kong-k8-installation/services/ts43-auth/app
 
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/ts43-authcode:v9 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/ts43-authcode:v10 \
   --push .
 
 # Deploy TS43 AUth Code  Image
@@ -126,7 +142,7 @@ cd kong-k8-installation/services/camera-auth/app
 
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v5 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v12 \
   --push .
 
 # Deploy Camera Image
@@ -155,15 +171,27 @@ kubectl -n kong get deploy,po,svc | grep jwt-issuer
 
 
 Deploy TS 43 Endpoint to KONG:
+
 # dry-run
-helm upgrade --install ts43-config ./charts/ts43-config -n kong --debug --dry-run
+helm upgrade --install ts43-config ./charts/Sherlock -n kong --debug --dry-run
 
 # apply & wait
 helm upgrade --install ts43-config ./charts/Sherlock -n kong 
 
+# If any issue like this;
+   helm upgrade --install ts43-config ./charts/Sherlock -n kong --debug --dry-run
+Error: Kubernetes cluster unreachable: Get "http://localhost:8080/version": dial tcp [::1]:8080: connect: connection refused
+    export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+    then run again helm upgrade commanf agian:
+    helm upgrade --install ts43-config ./charts/Sherlock \
+    -n kong \
+    --kubeconfig /etc/rancher/k3s/k3s.yaml \
+    --debug --dry-run
+
+
 # In the KONG UI , for gateway service and route
-  http://34.61.21.100:30516/default/services
-  http://34.61.21.100:30516/default/routes
+  curl http://34.61.21.100:32081/default/services
+  curl http://34.61.21.100:32081/default/routes
 
 
 

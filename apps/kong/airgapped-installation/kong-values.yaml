@@ -1,0 +1,77 @@
+podSecurityContext:
+  fsGroup: 1001
+# === Enterprise image ===
+image:
+  repository: kong/kong-gateway
+  tag: "3.9"             # choose n-1 kong release 
+# === Enable Enterprise & supply license in license.json ===
+enterprise:
+  enabled: true
+  license_secret: kong-enterprise-license
+
+env:
+  # DB-mode (OAuth2 needs DB)
+  database: "postgres"
+  pg_host: "postgres-kong.kong.svc.cluster.local"
+  pg_port: 5432
+  pg_user: "kong"
+  pg_password: "supersecret-kong"
+  pg_database: "kong"
+
+  # Bootstrap Manager admin (username = kong_admin)
+  password: "SetA-Strong-Admin-Password"
+
+  # Enable Admin API + Manager listeners
+  admin_listen: "0.0.0.0:8001, 0.0.0.0:8444 ssl"
+  admin_gui_listen: "0.0.0.0:8002, 0.0.0.0:8445 ssl"
+
+  # Internal URLs for Manager
+  # admin_gui_api_url: "http://kong-kong-admin.kong.svc.cluster.local:8001"
+  # admin_gui_url: "http://kong-kong-manager.kong.svc.cluster.local:8002"
+
+  admin_gui_url: "http://34.61.21.100:30516"
+  admin_gui_api_url: "http://34.61.21.100:32081"
+
+# Proxy Endpoint
+proxy:
+  type: NodePort
+  http:
+    enabled: true
+    servicePort: 80
+    nodePort: 32080
+  tls:
+    enabled: true
+    servicePort: 443
+    nodePort: 32443
+
+#kong Admin API - Only Kong Env & System Changes 
+admin:
+  enabled: true
+  type: NodePort
+  http:
+    enabled: true
+    servicePort: 8001
+    nodePort: 32081
+  tls:
+    enabled: true
+    servicePort: 8444
+    nodePort: 32441
+
+# Kong Admin UI     
+manager:
+  enabled: true
+  type: NodePort
+  http: 
+    enabled: true
+    servicePort: 8002
+    nodePort: 30516
+  tls:
+    enabled: true 
+    servicePort: 8445
+    nodePort: 30952
+
+status:
+  enabled: true
+
+migrations:
+  enabled: true

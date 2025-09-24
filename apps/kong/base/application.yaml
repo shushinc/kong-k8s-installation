@@ -20,7 +20,7 @@ spec:
     env:
       # DB-mode (OAuth2 needs DB)
       database: "postgres"
-      pg_host: "kong-pg-postgresql.kong.svc.cluster.local"
+      pg_host: "postgres-kong.kong.svc.cluster.local"
       pg_port: 5432
       pg_user: "kong"
       pg_password: "supersecret-kong"
@@ -37,8 +37,8 @@ spec:
       # admin_gui_api_url: "http://kong-kong-admin.kong.svc.cluster.local:8001"
       # admin_gui_url: "http://kong-kong-manager.kong.svc.cluster.local:8002"
 
-      admin_gui_url: "http://34.61.21.100:30516"
-      admin_gui_api_url: "http://34.61.21.100:32081"
+      admin_gui_url: "http://35.193.105.79:30516"
+      admin_gui_api_url: "http://35.193.105.79:32081"
 
     # Proxy Endpoint
     proxy:

@@ -1,0 +1,41 @@
+# k8s/base/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  # UPDATED: Name aligned with the service
+  name: cookie-generator-service
+  namespace: kong
+  labels:
+    app: cookie-generator-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cookie-generator-service
+  template:
+    metadata:
+      labels:
+        app: cookie-generator-service
+    spec:
+      containers:
+        - name: api
+          image: us-central1-docker.pkg.dev/sherlock-004/ts43/cookie-generator-service:v16
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+      terminationGracePeriodSeconds: 10

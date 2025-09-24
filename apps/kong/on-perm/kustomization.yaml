@@ -11,3 +11,4 @@ patches:
       kind: Deployment
       name: kong-kong
       namespace: kong
+  - path: patch-security-context.yaml
