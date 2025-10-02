@@ -25,3 +25,5 @@ spec:
               value: "http://jwt-issuer-service.kong.svc.cluster.local:80"
             - name: EXTERNAL_AUTH_URL
               value: "http://34.54.169.57/v0/authenticate_user" 
+            - name: LOG_LEVEL
+              value: "DEBUG" #or INFO

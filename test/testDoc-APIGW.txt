@@ -1,0 +1,52 @@
+1st method: Get Token
+```bash
+curl -k ' https://192.168.1.137:32443/camera/authorizer' --header 'Content-Type: application/x-www-form-urlencoded' --header 'x-correlator: 123-456-789' --data-urlencode 'response_type=code' --data-urlencode 'client_id=test' --data-urlencode 'redirect_uri= https://oauth.pstmn.io/v1/callback' --data-urlencode 'scope=sherlockapiresource/write' --data-urlencode 'provision_key=OAuth-Token-Dispenser-Key' --data-urlencode 'authenticated_userid=test_id' --data-urlencode 'grant_type=authorization_code' --data-urlencode 'customerName=abcd' --data-urlencode 'ipAddress=192.168.100.100' 
+'''
+Output:
+{"redirect_uri":" https://oauth.pstmn.io/v1/callback?code=dG9rZW49KzYzOTE3MTIzNDU2MToxNzU4ODkyMzAxJmxvZ2luX2hpbnQ9KzYzOTE3MTIzNDU2MQ=="}
+
+
+
+2nd Method: GET JWT Token
+```bash
+curl -k --location --request POST  'https://192.168.1.137:32443/camera/token' \
+--header 'Content-Type: application/x-www-form-urlencoded' \
+--header 'code: dG9rZW49KzYzOTE3MTIzNDU2MToxNzU4ODkyMzAxJmxvZ2luX2hpbnQ9KzYzOTE3MTIzNDU2MQ=='
+'''
+
+Output:
+"jwt":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ0ZXN0LWFwcC1pc3N1ZXIiLCJsb2dpbl9oaW50IjoiKzYzOTE3MTIzNDU2MSIsImlhdCI6MTc1ODg5MjQ2MCwiZXhwIjoxNzU4ODk2MDYwfQ._yxm7afEQmyAEiPM9r9Q4aHpzJFKD7fzV_dcvpntH1M"
+
+
+
+Silent Auth:
+```bash
+curl  -k  --location 'https://192.168.1.137:32443/number-verification/v0/retrieve_phone_number' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ0ZXN0LWFwcC1pc3N1ZXIiLCJsb2dpbl9oaW50IjoiKzYzOTE3MTIzNDU2MSIsImlhdCI6MTc1ODg5MjQ2MCwiZXhwIjoxNzU4ODk2MDYwfQ._yxm7afEQmyAEiPM9r9Q4aHpzJFKD7fzV_dcvpntH1M' \
+--header 'customerName: Bank1' \
+--header 'x-correlator: 123-456-789'
+'''
+
+output:
+{"devicePhoneNumber":"+639171234561"}
+
+
+Zero Trust:
+
+```bash
+curl -k --location 'https://192.168.1.137:32443/number-verification/v0/verify_phone_number' \
+--header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ0ZXN0LWFwcC1pc3N1ZXIiLCJsb2dpbl9oaW50IjoiKzYzOTE3MTIzNDU2MSIsImlhdCI6MTc1ODg5MjQ2MCwiZXhwIjoxNzU4ODk2MDYwfQ._yxm7afEQmyAEiPM9r9Q4aHpzJFKD7fzV_dcvpntH1M' \
+--header 'customerName: Bank1' \
+--header 'x-correlator: 123-456-789' \
+--header 'Content-Type: application/json' \
+--data '{
+  "phoneNumber": "+639171234561"
+}'
+'''
+
+output:
+{"devicePhoneNumberVerified":true}
+
+
+
+

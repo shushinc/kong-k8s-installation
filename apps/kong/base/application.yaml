@@ -51,6 +51,7 @@ spec:
         enabled: true
         servicePort: 443
         nodePort: 32443
+      externalTrafficPolicy: Local
    
     #kong Admin API - Only Kong Env & System Changes 
     admin:
