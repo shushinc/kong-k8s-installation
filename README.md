@@ -18,6 +18,10 @@ kubectl configured for your cluster (K3s recommended).
 
 Rancher Helm Controller CRDs available (helm.cattle.io/v1).
 
+### Prereuiest:
+1. Install helm
+   dnf install helm
+
 Namespace:
 
 kubectl create ns kong
@@ -172,7 +176,6 @@ cd kong-k8-installation
 Update the Values as per below:
   services/camera-auth/k8s/on-perm/patch-env.yaml
   EXTERNAL_AUTH_URL replace with sherlock ip 
-kubectl apply -k services/camera-auth/k8s/on-perm
 kubectl -n kong get deploy,po,svc | grep camera-auth
 ```
 
@@ -199,7 +202,7 @@ kubectl -n kong get deploy,po,svc | grep jwt-issuer
 Deploy TS 43 Endpoint to KONG:
 # dry-run
 ```bash
-helm upgrade --install ts43-config ./charts/ts43-config -n kong --debug --dry-run
+helm upgrade --install ts43-config ./charts/Sherlock -n kong --debug --dry-run
 
 (or)
 helm upgrade --install ts43-config ./charts/Sherlock \
