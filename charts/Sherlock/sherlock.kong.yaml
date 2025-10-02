@@ -8,7 +8,7 @@ services:
   tags: [auth, camera]
   routes:
   # This route exposes your service to the outside world via Kong.
-    - name: camera-authorizer-route
+    - name: camara-authorizer-route
       paths:
         - /camara/authorizer
       strip_path: true
@@ -20,7 +20,7 @@ services:
             replace:
               # After stripping, this sets the path to /authorizer for your FastAPI app.
               uri: "/authorizer"
-    - name: camera-token-route
+    - name: camara-token-route
       paths:
         - /camara/token
       strip_path: true
@@ -130,12 +130,12 @@ services:
     service:
         id: de1643db-2ca0-4011-b967-8df7f845d07b
 
-- host: 34.54.169.57
+- host: sherlock-service.hudson.svc.cluster.local
   id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
   name: sherlock-api
   path: /
   plugins: []
-  port: 80
+  port: 8081
   protocol: http
   connect_timeout: 60000
   write_timeout: 60000
