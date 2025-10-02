@@ -8,7 +8,7 @@ services:
   tags: [auth, camera]
   routes:
   # This route exposes your service to the outside world via Kong.
-    - name: camera-authorizer-route
+    - name: camara-authorizer-route
       paths:
         - /camara/authorizer
       strip_path: true
@@ -20,7 +20,7 @@ services:
             replace:
               # After stripping, this sets the path to /authorizer for your FastAPI app.
               uri: "/authorizer"
-    - name: camera-token-route
+    - name: camara-token-route
       paths:
         - /camara/token
       strip_path: true
