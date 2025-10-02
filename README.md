@@ -226,8 +226,10 @@ helm upgrade --install ts43-config ./charts/Sherlock \
   http://34.61.21.100:30516/default/routes
   ```
 
-
-
+# CURL testing in the Following Documentation
+```bash
+  test/testDoc-APIGW.txt
+  ```
 
 # TOOLS:
 1. Kong runtime log:
