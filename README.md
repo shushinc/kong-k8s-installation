@@ -27,47 +27,51 @@ Kong Enterprise license.json file (do not commit it to git).
 
 1) Install Postgres (Bitnami)
 # From repo root
+```bash
 kubectl apply -n kong -k apps/postgres/on-perm
-
+```
 # Wait for Postgres
+```bash
 kubectl -n kong rollout status statefulset/kong-pg-postgresql --timeout=5m
-
+```
 # Inspect
+```bash
 kubectl -n kong get pods,svc -l app.kubernetes.io/name=postgresql
-
+```
 Quick DB test
+```bash
 kubectl -n kong run psql-client --rm -it --image=postgres:15 --restart=Never \
   --env=PGPASSWORD=supersecret-kong -- \
   psql "host=postgres-kong.kong.svc.cluster.local port=5432 dbname=kong user=kong" \
   -c "select now(), current_user, current_database();"
-
+```
 # Add the Enterprise License
 
 From the folder containing license.json:
+```bash
 cd kong-k8-installation
+```
+```bash
 kubectl -n kong create secret generic kong-enterprise-license \
   --from-file=license=./license.json
-
+```
 check the value of secret:
+```bash
 kubectl -n kong create secret generic kong-enterprise-license \
   --from-file=license=./license.json
-
+```
 # Install Kong Gateway Enterprise
 
-In the folder containing apps/kong/on-perm/deployment-patch.yaml (HelmChart) configures:
-  1. Enterprise image kong/kong-gateway
-  2. External Postgres connection
-  3. NodePorts for Proxy/Admin/Manager
-  4. Migrations enabled
-
-Add the change the helm configuration here:
+Add the change the helm configuration here( if you customize from standard deployemnt, if there is no changes from standard change you can ignore it ):
   1. pg_host
-  2. admin_gui_url
-  3. admin_gui_api_url
 
+Update below values with work node ip:
+  1. admin_gui_url
+  2. admin_gui_api_url 
 Apply:
+```bash
 kubectl apply -n kong -k apps/kong/on-perm
-
+```
 CHeck for Ports 
 [ansible@kong-onperm-cluster-01 kong-k8-installation]$ kubectl -n kong get svc
 NAME                           TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)                         AGE
@@ -92,96 +96,132 @@ ts43-auth-86bbf4f95f-2q8dl     1/1     Running     0          9h
 ts43-auth-86bbf4f95f-84qj8     1/1     Running     0          9h
 ts43-redis-0                   1/1     Running     0          2d11h
 
-check kong version:
- kubectl -n kong exec deploy/kong-kong -c proxy -- kong version
 
- check Kong Licenses:
- kubectl -n kong exec deploy/kong-kong -c proxy -- printenv KONG_LICENSE_DATA | head -c 120; echo
-
-# Manager Ednpoint
+# Kong Admin UI  Ednpoint
+```bash
 curl -I http://<NODE_PUBLIC_IP>:30516/workspaces
-
+```
 # Proxy Endpoint
+```bash
 curl -I https://<NODE_PUBLIC_IP>:32080/
-
+```
 
 
 # Deploy Redis
+```bash
 kubectl apply -k ts43-redis/k8s/on-perm
+```
+```bash
 kubectl -n kong get pods,svc | grep ts43-redis
+```
 
-# docker build and push cookie-generator-service  Image to sherlock-004:
+# (Ignore this If you are not building the Image)docker build and push cookie-generator-service  Image to sherlock-004:
+```bash
 cd kong-k8-installation/services/cookie-generator-service/app
-
+```
+```bash
 sudo docker buildx build \
   --platform linux/amd64 \
   -t us-central1-docker.pkg.dev/sherlock-004/ts43/cookie-generator-service:v8 \
   --push .
+```
 
+# Deploy cookie-generator-service Image
+```bash
 cd kong-k8-installation
+```
+```bash
+In this File:
+services/cookie-generator-service/k8s/on-perm/patch-env.yaml
+Replace "BACKEND_API_URL" change to sherlock IP 
+```
+```bash
 kubectl apply -k services/cookie-generator-service/k8s/on-perm
+```
 
 
 
-# docker build and push TS43 Authe code Image to sherlock-004:
+# (Ignore this If you are not building the Image) docker build and push TS43 Authe code Image to sherlock-004:
+```bash
 cd kong-k8-installation/services/ts43-auth/app
-
 sudo docker buildx build \
   --platform linux/amd64 \
   -t us-central1-docker.pkg.dev/sherlock-004/ts43/ts43-authcode:v10 \
   --push .
+```
 
 # Deploy TS43 AUth Code  Image
+```bash
 cd kong-k8-installation
 kubectl apply -k services/ts43-auth/k8s/on-perm
 kubectl -n kong get deploy,po,svc | grep ts43-auth
+```
 
-
-# docker build and push Camera  Image to sherlock-004:
-cd kong-k8-installation/services/camera-auth/app
-
+# (Ignore this If you are not building the Image)docker build and push Camera  Image to sherlock-004:
+```bash
+cd services/camera-auth/app
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v12 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v20.5.2 \
   --push .
+```
 
 # Deploy Camera Image
+```bash
 cd kong-k8-installation
+Update the Values as per below:
+  services/camera-auth/k8s/on-perm/patch-env.yaml
+  EXTERNAL_AUTH_URL replace with sherlock ip 
 kubectl apply -k services/camera-auth/k8s/on-perm
 kubectl -n kong get deploy,po,svc | grep camera-auth
+```
 
-
-# docker build and push JWT Issuer to sherlock-004:
+# (Ignore this If you are not building the Image) docker build and push JWT Issuer to sherlock-004:
+```bash
 cd kong-k8-installation/services/jwt-issuer/app
-
 sudo docker buildx build \
   --platform linux/amd64 \
   -t us-central1-docker.pkg.dev/sherlock-004/ts43/jwt-issuer:v5 \
   --push .
+  ```
 
 # Deploy jwt-issuer
-
+```bash
 1. Create Fallback secret:
   kubectl create secret generic -n kong jwt-issuer-secret --from-literal=secret=strongpassword
 2. Deployment
 cd kong-k8-installation
 kubectl apply -k services/jwt-issuer/k8s/on-perm
 kubectl -n kong get deploy,po,svc | grep jwt-issuer
-
+  ```
 
 
 Deploy TS 43 Endpoint to KONG:
 # dry-run
+```bash
 helm upgrade --install ts43-config ./charts/ts43-config -n kong --debug --dry-run
 
+(or)
+helm upgrade --install ts43-config ./charts/Sherlock \
+    -n kong \
+    --debug --dry-run \
+    --kubeconfig /etc/rancher/k3s/k3s.yaml
+  ```
 # apply & wait
+```bash
 helm upgrade --install ts43-config ./charts/Sherlock -n kong 
 
+(or)
+helm upgrade --install ts43-config ./charts/Sherlock \
+    -n kong \
+    --kubeconfig /etc/rancher/k3s/k3s.yaml
+```
 # In the KONG UI , for gateway service and route
+```bash
+  Example ( replace the host to yours)
   http://34.61.21.100:30516/default/services
   http://34.61.21.100:30516/default/routes
-
-
+  ```
 
 
 

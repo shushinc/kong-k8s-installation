@@ -1,0 +1,21 @@
+# patch-kong-access-log.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong-kong
+  namespace: kong
+spec:
+  template:
+    spec:
+      containers:
+        - name: proxy
+          env:
+            # Write access log to a file instead of stdout
+            - name: KONG_PROXY_ACCESS_LOG
+              value: "/tmp/kong_requests.log"
+            # (optional) also send admin access logs to a file
+            - name: KONG_ADMIN_ACCESS_LOG
+              value: "off"   # or "/tmp/kong_admin_access.log"
+            # (optional) error log file
+            - name: KONG_ERROR_LOG
+              value: "/tmp/kong_error.log"

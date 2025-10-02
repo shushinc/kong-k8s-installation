@@ -1,0 +1,14 @@
+/usr/local/kong/logs/custom_api_transaction.log {
+    su kong kong
+    daily                      # Rotate logs daily
+    rotate 14                 # Keep 30 days of logs
+    missingok                   # Ignore if log file is missing
+    compress                    # Compress older logs (optional)
+    delaycompress               # Delay compression to avoid compressing the most recent log file
+    dateext                     # Use date in log file names after rotation
+    create 0644 root root       # Set permissions for new log files
+    postrotate
+        # You can restart Kong or any other necessary service here if required
+        # systemctl restart kong
+    endscript
+}

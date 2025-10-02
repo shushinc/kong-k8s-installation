@@ -1,0 +1,23 @@
+Location: 
+cd /usr/local/share/lua/5.1/kong/plugins/
+mkdir -p custom-log-plugin
+
+
+Kong.config:
+	vi /etc/kong/kong.conf
+	Line number : 155
+		plugins = bundled,custom-log-plugin
+		plugins = bundled,custom-log-plugin   
+	Line number : 33
+		log_level = info
+	kong restart -c /etc/kong/kong.conf
+FROM UI Enable custom-log-plugin for the services
+
+
+LogRotation:
+	sudo yum install logrotate
+	cp custom-log-plugin /etc/logrotate.d/custom-log-plugin
+	sudo logrotate -f /etc/logrotate.d/custom-log-plugin
+
+Note:
+Carrier Name -> Response Body

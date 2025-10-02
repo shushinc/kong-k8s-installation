@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  labels:
+    app: postgres-kong
+data:
+  POSTGRES_DB: kong
+  POSTGRES_USER: kong
+  POSTGRES_PASSWORD: supersecret-kong
