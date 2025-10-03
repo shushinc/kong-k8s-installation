@@ -4,9 +4,6 @@ kind: Kustomization
 bases:
   - ../base
 
-resources:
-  - ../custom-plugins 
-
 # If you have deployment patches (NOT touching HelmChart valuesContent), keep them here:
 patches:
   - path: deployment-patch.yaml

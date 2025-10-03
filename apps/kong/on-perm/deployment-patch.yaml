@@ -17,14 +17,3 @@ spec:
               value: "on"
             - name: KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES
               value: "kong.http.client"
-            - name: KONG_PLUGINS
-              value: "bundled,custom-log-plugin"
-            - name: KONG_LUA_PACKAGE_PATH
-              value: "/opt/kong/plugins/?.lua;;"
-          volumeMounts:
-            - name: kong-custom-plugins-volume
-              mountPath: /opt/kong/plugins/custom-log-plugin
-      volumes:
-        - name: kong-custom-plugins-volume
-          configMap:
-            name: kong-custom-plugins
