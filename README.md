@@ -166,7 +166,7 @@ kubectl -n kong get deploy,po,svc | grep ts43-auth
 cd services/camera-auth/app
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v20.5.2 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v20.5.3 \
   --push .
 ```
 
@@ -176,6 +176,7 @@ cd kong-k8-installation
 Update the Values as per below:
   services/camera-auth/k8s/on-perm/patch-env.yaml
   EXTERNAL_AUTH_URL replace with sherlock ip 
+kubectl apply -k services/camera-auth/k8s/on-perm
 kubectl -n kong get deploy,po,svc | grep camera-auth
 ```
 
