@@ -16,9 +16,20 @@ spec:
     enterprise:
       enabled: true
       license_secret: kong-enterprise-license
-
+    deployment:
+      userDefinedVolumes:
+        - name: kong-custom-plugins-volume
+          configMap:
+            name: kong-custom-plugins
+      userDefinedVolumeMounts:
+        - name: kong-custom-plugins-volume
+          mountPath: /opt/kong/plugins/custom-log-plugin
+          readOnly: true
     env:
       # DB-mode (OAuth2 needs DB)
+      KONG_PLUGINS: bundled,custom-log-plugin
+      KONG_LUA_PACKAGE_PATH: /opt/kong/plugins/?.lua;;
+
       database: "postgres"
       pg_host: "postgres-kong.kong.svc.cluster.local"
       pg_port: 5432

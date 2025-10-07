@@ -1,3 +1,4 @@
+# apps/kong/on-perm/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -7,7 +8,7 @@ bases:
 resources:
   - ../custom-plugins 
 
-# If you have deployment patches (NOT touching HelmChart valuesContent), keep them here:
+# Point to your single, merged patch file
 patches:
   - path: deployment-patch.yaml
     target:

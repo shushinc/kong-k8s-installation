@@ -1,3 +1,4 @@
+# apps/kong/on-perm/deployment-patch.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -9,6 +10,13 @@ spec:
       containers:
         - name: proxy
           env:
+            # === Custom Plugin Settings ===
+            - name: KONG_PLUGINS
+              value: "bundled,custom-log-plugin"
+            - name: KONG_LUA_PACKAGE_PATH
+              value: "/opt/kong/plugins/?.lua;/opt/kong/plugins/?/init.lua;;"
+            
+            # === Other Settings You Needed ===
             - name: KONG_TRUSTED_IPS
               value: "0.0.0.0/0,::/0"
             - name: KONG_REAL_IP_HEADER
@@ -17,10 +25,15 @@ spec:
               value: "on"
             - name: KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES
               value: "kong.http.client"
-            - name: KONG_PLUGINS
-              value: "bundled,custom-log-plugin"
-            - name: KONG_LUA_PACKAGE_PATH
-              value: "/opt/kong/plugins/?.lua;;"
+
+            # === Log File Settings ===
+            - name: KONG_PROXY_ACCESS_LOG
+              value: "/tmp/kong_requests.log"
+            - name: KONG_ADMIN_ACCESS_LOG
+              value: "off"
+            - name: KONG_ERROR_LOG
+              value: "/tmp/kong_error.log"
+
           volumeMounts:
             - name: kong-custom-plugins-volume
               mountPath: /opt/kong/plugins/custom-log-plugin
