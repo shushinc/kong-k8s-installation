@@ -70,7 +70,7 @@ function CustomLogPlugin:log(conf)
     readable_timestamp, response_status, request_method, first_part_of_uri, carrier_name, customer_name, client, latency_ms
   )
   
-  local log_file_name = "/usr/local/kong/logs/custom_api_transaction.log"
+  local log_file_name = "/tmp/custom_api_transaction.log"
   local file = io.open(log_file_name, "a")
   if file then
     file:write(log_entry .. "\n")

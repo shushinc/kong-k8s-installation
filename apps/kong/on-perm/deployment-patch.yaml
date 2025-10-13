@@ -10,12 +10,6 @@ spec:
       containers:
         - name: proxy
           env:
-            # === Custom Plugin Settings ===
-            - name: KONG_PLUGINS
-              value: "bundled,custom-log-plugin"
-            - name: KONG_LUA_PACKAGE_PATH
-              value: "/opt/kong/plugins/?.lua;/opt/kong/plugins/?/init.lua;;"
-            
             # === Other Settings You Needed ===
             - name: KONG_TRUSTED_IPS
               value: "0.0.0.0/0,::/0"
@@ -33,11 +27,3 @@ spec:
               value: "off"
             - name: KONG_ERROR_LOG
               value: "/tmp/kong_error.log"
-
-          volumeMounts:
-            - name: kong-custom-plugins-volume
-              mountPath: /opt/kong/plugins/custom-log-plugin
-      volumes:
-        - name: kong-custom-plugins-volume
-          configMap:
-            name: kong-custom-plugins

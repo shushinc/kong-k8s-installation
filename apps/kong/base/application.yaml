@@ -18,17 +18,18 @@ spec:
       license_secret: kong-enterprise-license
     deployment:
       userDefinedVolumes:
-        - name: kong-custom-plugins-volume
+        - name: kong-plugin-myheader
           configMap:
-            name: kong-custom-plugins
+            name: kong-plugin-myheader
       userDefinedVolumeMounts:
-        - name: kong-custom-plugins-volume
-          mountPath: /opt/kong/plugins/custom-log-plugin
-          readOnly: true
+        - name: kong-plugin-myheader
+          # Mount to the main plugins directory
+          mountPath: /usr/local/share/lua/5.1/kong/plugins/custom-log-plugin
+
     env:
       # DB-mode (OAuth2 needs DB)
-      KONG_PLUGINS: bundled,custom-log-plugin
-      KONG_LUA_PACKAGE_PATH: /opt/kong/plugins/?.lua;;
+      plugins: "bundled"
+      LUA_PACKAGE_PATH=/usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua;;
 
       database: "postgres"
       pg_host: "postgres-kong.kong.svc.cluster.local"

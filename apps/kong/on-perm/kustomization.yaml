@@ -5,8 +5,8 @@ kind: Kustomization
 bases:
   - ../base
 
-resources:
-  - ../custom-plugins 
+# resources:
+#   - ../custom-plugins 
 
 # Point to your single, merged patch file
 patches:
