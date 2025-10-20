@@ -1,0 +1,38 @@
+Available,Enabled,API,Network Attribute(s),Endpoint,Price,Currency,Markup,Bundle Discount,Wholesale Price
+TRUE,TRUE,Retrieve Ip Address,,/silent-authentication/v0/retrieve-ip-address,0.0026,USD,15.00%,,0.0023
+TRUE,FALSE,Verify Ip Address,,/silent-authentication/v0/verify-ip-address,N/A,USD,15.00%,,0.0023
+TRUE,TRUE,Verify Number,,/number-verification/v0/verify-number,0.0026,USD,15.00%,,0.0023
+TRUE,TRUE,Verify Name,,/customer-verification/v0/verify-name,0.0141,USD,15.00%,,0.0123
+TRUE,FALSE,Verify Billing Address,Biliing Address,/customer-verification/v0/verify-billing-address,N/A,USD,15.00%,,0.0881
+TRUE,FALSE,Verify Email Address,,/customer-verification/v0/verify-email-address,N/A,USD,15.00%,,0.001233
+TRUE,TRUE,Verify Age,,/customer-verification/v0/verify-age,0.0026,USD,15.00%,,0.0023
+TRUE,TRUE,Verify Bundle,,/customer-verification/v0/verify-bundle,N/A,USD,,15%,N/A
+TRUE,TRUE,Retrieve Customer Type,,/account-status/v0/retrieve-customer-type,0.0026,USD,15.00%,,0.0023
+TRUE,TRUE,Retrieve Account Type,"Billing Status, Billing Type",/account-status/v0/retrieve-account-type,0.0141,USD,15.00%,,0.0123
+TRUE,TRUE,Retrieve Primary Account Holder,,/account-status/v0/retrieve-primary-account-holder,0.1013,USD,15.00%,,0.0881
+TRUE,TRUE,Retrieve Service Activation Date,,/account-status/v0/retrieve-service-activation-date,0.0014,USD,15.00%,,0.001233
+TRUE,TRUE,Retrieve Subscriber Account Status,,/account-status/v0/retrieve-subscriber-account-status,0.0026,USD,15.00%,,0.0023
+FALSE,FALSE,Retrieve Bundle,,/account-status/v0/retrieve-bundle,N/A,USD,,20%,0.106233
+TRUE,TRUE,Retrieve Last Number Change Date,,/account-status-change/v0/retrieve-last-number-change-date,0.0026,USD,15.00%,,0.0023
+FALSE,FALSE,Retrieve Subscription Status Change Date,,/account-status-change/v0/retrieve-subscription-status-change-date,N/A,USD,15.00%,,0.0023
+TRUE,TRUE,Account Status Change Retrieve Last Primary Name Change Date,,/account-status-change/v0/retrieve-last-primary-name-change-date,0.0026,USD,15.00%,,0.0023
+TRUE,TRUE,Retrieve Last Billing Address Change Date,,/account-status-change/v0/retrieve-last-billing-address-change-date,0.0026,USD,15.00%,,0.0023
+TRUE,TRUE,Retrieve Msisdn Porting Status,,/count-status-change/v0/retrieve-msisdn-porting-status,0.0026,USD,15.00%,,0.0023
+TRUE,FALSE,Account Status Change Bundle,,/account-status-change/v0/retrieve-bundle,N/A,USD,,25%,N/A
+TRUE,TRUE,Retrieve Imei Activation Date,,/device-sim-status/v0/retrieve-imei-activation-date,0.0138,USD,15.00%,,0.012
+TRUE,TRUE,Retrieve Imei Change Date,,/device-sim-status/v0/retrieve-imei-change-date,0.0702,USD,15.00%,,0.061
+TRUE,TRUE,Retrieve Imei,,/device-sim-status/v0/retrieve-imei,0.8752,USD,15.00%,,0.761
+TRUE,TRUE,Retrieve Imsi Activation Date,,/device-sim-status/v0/retrieve-imsi-activation-date,0.0205,USD,15.00%,,0.01782
+TRUE,TRUE,Retrieve Device Lost Stolen Status,,/device-sim-status/v0/retrieve-device-lost-stolen-status,0.1003,USD,15.00%,,0.0872
+TRUE,TRUE,Retrieve Device Lost Stolen Date,,/device-sim-status/v0/device-sim-status/v0/retrieve-device-lost-stolen-date,0.0599,USD,15.00%,,0.0521
+TRUE,FALSE,Check Sim Swap,,/device-sim-status/v0/check-sim-swap,N/A,USD,15.00%,,0.0232
+TRUE,FALSE,Retrieve Imsi Change Date,,/device-sim-status/v0/retrieve-imsi-change-date,N/A,USD,15.00%,,0.067512
+TRUE,FALSE,Device Sim Status Bundle,,/device-sim-status/v0/retrieve-bundle,N/A,USD,,20%,N/A
+TRUE,TRUE,Retrieve Call Forwarding,,/routing-status/v0/retrieve-call-forwarding,0.0049,USD,15.00%,,0.0043
+TRUE,TRUE,Retrieve Roaming Status,,/routing-status/v0/retrieve-roaming-status,0.0762,USD,15.00%,,0.0663
+TRUE,TRUE,Routing Status Bundle,,/routing-status/v0/retrieve-bundle,0.0565,USD,,20%,0.0706
+TRUE,TRUE,Retrieve Active Inbound Call,,/in-call-state/v0/retrieve-active-inbound,0.0037,USD,15.00%,,0.0032
+FALSE,FALSE,Retrieve Active Inbound Call,,/in-call-state/v0/retrieve-active-outbound,N/A,USD,15.00%,,0.0024
+FALSE,FALSE,In Call State Bundle,,/in-call-state/v0/retrieve-bundle,#VALUE!,USD,,20%,N/A
+TRUE,FALSE,Retrieve Device Location,,/device-location/v0/retrieve-device-location,N/A,USD,15.00%,,0.0017
+TRUE,FALSE,Device Location Verify,,/device-location/v0/verify-device-location,N/A,USD,15.00%,,0.0024
