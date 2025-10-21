@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "sherlock-004",
+  "private_key_id": "0f77c58cb44b5f46c4d447fea2070718c88b6b68",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDX6GinJdIyYWbf\nS2VFcBvWSNIstKTFxew/CI+nzBuTFLQx8Wobhfx7k5DBxGAuYPvIjnf6CfeL6jmf\ntN6/rjkMznwOUPR2W6jpqrfTc08oJ6cShg1IVeAKddbtOtsRJKK7FDGOpw8tVkai\nAIuTxi/whXE9A22l6UEvZSRAnpKY+dV4eqv8lYxLHNYoxTHQnhtsnKmrfg3k2pvs\nk3/BdXfUrUnIHoLb1dZD1lrGmK8Lvv2QQwGRdDFardihKxCod5X4spX4SnZ7ulhn\n7jqSr5FeVLGICbKfX0wy/tC+pT33VYZqcO7YFc3lx0i+2VV0Y7U1BREQiNHTxUGT\ncm26Yz+rAgMBAAECggEAITm9YSY2LVVFOiJQI1oX7pH7m1rxQGjaQkOprRjWkCZ6\nKcq3mXoKW2S0vMeLmuzcfQXvpfrYAsq4s2sSHE1OBOUsZ3JDLIj5JXxawvTWaZzb\nM8Pip2RlEIxcgYVdJkuM/10hgze844KIvBrOtUmlIaO8xAw9rhqHKClYZYQBlf4T\n6SwqhIhGvy257extNlac53mXJeamp7zcKS+yrmFX7anpvUtS/TBoGJfxXeFMeF1z\npzUrrxNGkLJceVNbGPDUV2UGrEdkKodOZBInEs25uDh8E7ZMntBQMvAgm3b9UOA7\n3nPgta/qEi4jyu6BKZB4lRETPlUNnr83hNQrnXi+AQKBgQD6x3ZieaMBIHTYyTY6\n+26qrEqzF+R8vkrxeEmlNGlHGjpgZ4YAvtmvrinjkIjJHplR1D0GixZ6GUWo6u2w\nrMr1ZlRsey0CyeAqSixrRHDs8aGfS6DCvtVNzfz1URLrCYSq8/OVcLL75HlMbvcl\nEgcUDIQyxhq/NB1JWNkPMwFsGwKBgQDcZxktVcusr8E1qmWGzgxuOkQwiANifG/j\nbiqNBzEfsiThnPsxE47ENQNCzrNxZCnVUAnVSC+t8u6No20vv0OB5yXCKYAhm1vq\nrg5r8pt27AjKt63WBoXScxQLDr/b3gnvIEKdzDoT4Y2Y2YE41/bFTIoiQ/3ycU0+\nHd973TyTsQKBgQDotNqH+rNlwkZrPBuUk+hXe9U9ZzhhAPvuIl7EbGQc1JvDBY11\nd6Psv8KjJmWnqzs+kaGnRr2uw3C+lHHH9i/HlBNXLt3PrqDS3U1mpHXdiUMe3EDr\nNcYdkr3erkLN02FGeWVZEOElmRdt87JmtdnXot2xd98t+iALBeU1k3EIbQKBgQCP\nGaVgKP9XvLlOlbbbgrbRbqVNeVHxROgEm0enT08WzDxj+9+f6pncTKs0Wi5p5eW/\naPspbnf+kedPMRe4U4+KLUD3wqg9qbhRM/eLIPbNjMzciculVZDXpf4Se94X7B85\nEhIOkEX5GI4t+rKK7LV9PofFXa3pFqVXOmAa9Pba0QKBgE5zNFlMabupr4UG7TF3\nC5TH+V7A/FAtXYyCkV4NMn8825D01LygjzhxtMeWYgdhhsNQFrP8Jv/of11sD5vl\nnSYoGrHQkfeGHCs/pRay0OABUHNcPO25F+HssHuF54DCSTRuPD3Zge+Vu42N+Lx9\nrG0eceKFDWwY0Pwv90AVjdg0\n-----END PRIVATE KEY-----\n",
+  "client_email": "elangotest-kong-aggregator@sherlock-004.iam.gserviceaccount.com",
+  "client_id": "102046189840976297176",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/elangotest-kong-aggregator%40sherlock-004.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
