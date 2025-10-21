@@ -43,7 +43,7 @@ fi
 
 # --- 2. Define and Confirm Resource Names ---
 # The Docker image path is now hardcoded for simplicity.
-IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.5"
+IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.8"
 
 CLIENT_NAME=$(echo "$CLIENT_NAME_INPUT" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g')
 BQ_DATASET_ID="${CLIENT_NAME}_kong_analytics"

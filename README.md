@@ -231,6 +231,51 @@ helm upgrade --install ts43-config ./charts/Sherlock \
 ```bash
   test/testDoc-APIGW.txt
   ```
+## deployemnt of kong custom plugins:
+kubectl apply -f services/aggregates/fluent-bit-daemonset.yaml
+kubectl -n logging rollout restart ds/fluent-bit
+kubectl logs -f -n logging -l app=fluent-bit 
+
+
+# (Ignore this If you are not building the Image)docker build and push Camera  Image to sherlock-004:
+```bash
+cd services/aggregates
+sudo docker buildx build \
+  --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.6 \
+  --push .
+  ```
+
+
+## Deployment Of aggragtes:
+# PreRequest from Shush Team:
+1. get the service account key( key.json) from shush team and place its under./services/aggregates/gcp/
+
+2. 
+```bash
+kubectl create namespace aggregates
+  ```
+
+3. 
+```bash
+kubectl create secret generic key \
+  --from-file=key.json=./services/aggregates/gcp/key.json \
+  -n aggregates
+  ```
+4. 
+```bash
+kubectl apply -f ./services/aggregates/config-elangotest.yaml -f ./services/aggregates/deployment-elangotest.yaml 
+  ```
+ 
+5. check pods for runnign and logging
+ kubectl -n aggregates rollout restart deploy/aggregator-elangotest
+ kubectl get pods -n aggregates
+ kubectl logs -f -n aggregates -l app=aggregator-elangotest
+ 
+
+ Restart if needed:
+ kubectl -n aggregates rollout restart deploy/aggregator-elangotest
+
 
 # TOOLS:
 1. Kong runtime log:
@@ -263,3 +308,11 @@ Run Kong In Debug Mode:
 2. kubectl rollout restart deployment kong-kong -n kong
 3. kubectl rollout status deploy/kong-kong -n kong 
 4. kubectl logs deploy/kong-kong -c proxy -f -n kong 
+
+
+
+Aggragate Debug:
+
+kubectl -n kong logs kong-kong-86c6b4f79f-w7bsw -c proxy  | grep '\[custom-log-plugin\]'
+
+kubectl logs -f -n logging -l app=fluent-bit 
