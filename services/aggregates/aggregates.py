@@ -7,6 +7,8 @@ from google.oauth2 import service_account
 from datetime import datetime, timedelta
 from collections import defaultdict
 import threading
+import os, json, time
+
 
 # --- Flask App Initialization ---
 app = Flask(__name__)
@@ -21,43 +23,125 @@ data_lock = threading.Lock()
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-# --- Configuration Loading from Environment Variables ---
-# All config is now sourced from the environment, set by the Kubernetes ConfigMap.
-SERVICE_ACCOUNT_FILE = os.environ.get('SERVICE_ACCOUNT_FILE_PATH')
-PRICING_FILE_PATH = os.environ.get('PRICING_FILE_PATH')
-BIGQUERY_PROJECT = os.environ.get('GCP_PROJECT_ID')
-BIGQUERY_DATASET = os.environ.get('BIGQUERY_DATASET')
-BIGQUERY_TABLE = os.environ.get('BIGQUERY_TABLE')
+# --- Configuration Loading ---
+def get_config(env_var, required=True, default=None):
+    value = os.getenv(env_var, default)
+    if required and value is None:
+        logging.error(f"FATAL: Environment variable {env_var} is not set.")
+        raise ValueError(f"Missing required environment variable: {env_var}")
+    return value
+# Global variable for the BQ client
+bq_client = None
 
-# Validate that all required environment variables are present
-if not all([SERVICE_ACCOUNT_FILE, PRICING_FILE_PATH, BIGQUERY_PROJECT, BIGQUERY_DATASET, BIGQUERY_TABLE]):
-    logging.critical("CRITICAL: Missing one or more required environment variables. Check the aggregator-config ConfigMap.")
-    # In a real scenario, you might want the pod to exit or fail its health check here.
-    
-BIGQUERY_TABLE_REF = f"`{BIGQUERY_PROJECT}.{BIGQUERY_DATASET}.{BIGQUERY_TABLE}`"
+try:
+    GCP_PROJECT_ID = get_config("GCP_PROJECT_ID")
+    SERVICE_ACCOUNT_FILE = get_config("SERVICE_ACCOUNT_FILE_PATH")
+    PRICING_FILE_PATH = get_config("PRICING_FILE_PATH")
+    BIGQUERY_DATASET = get_config("BIGQUERY_DATASET")
+    BIGQUERY_TABLE = get_config("BIGQUERY_TABLE")
+    BIGQUERY_TABLE_REF = f"`{GCP_PROJECT_ID}.{BIGQUERY_DATASET}.{BIGQUERY_TABLE}`"
+    credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE)
+    bq_client = bigquery.Client(project=GCP_PROJECT_ID, credentials=credentials)
+    logging.info("Successfully initialized BigQuery client.")
+except Exception as e:
+    logging.error(f"Failed to initialize configuration or BigQuery client: {e}")
 
 
 # --- Pricing Data Loading ---
 def load_pricing_data(pricing_file_path):
     pricing_map = {}
-    if not pricing_file_path: return {}
     try:
         with open(pricing_file_path, 'r') as csv_file:
             reader = csv.DictReader(csv_file)
             for row in reader:
                 endpoint = row.get('Endpoint', '').strip()
-                if endpoint:
-                    pricing_map[endpoint] = {
-                        'price': float(row.get('Price', 0)),
-                        'api': row.get('API', '').strip()
-                    }
+                price_str = row.get('Price', '0').strip()
+                api = row.get('API', '').strip()
+                if not endpoint: continue
+                try:
+                    price = float(price_str)
+                except (ValueError, TypeError):
+                    price = 0.0
+                pricing_map[endpoint] = {'price': price, 'api': api}
     except FileNotFoundError:
-        logging.error(f"Pricing file not found at: {pricing_file_path}")
+        logging.error(f"Pricing file not found at {pricing_file_path}")
     except Exception as e:
         logging.error(f"Error loading pricing data: {e}")
     return pricing_map
 
-PRICING_MAP = load_pricing_data(PRICING_FILE_PATH)
+pricing_map = load_pricing_data(PRICING_FILE_PATH)
+
+def calculate_hourly_key(timestamp_str):
+    try:
+        timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        next_hour = (timestamp + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        return next_hour.isoformat()
+    except (ValueError, TypeError):
+        return None
+    
+    
+def process_and_aggregate_logs():
+    global LOG_BUFFER
+    if not LOG_BUFFER:
+        logging.info("No logs in buffer to process.")
+        return
+
+    aggregates = defaultdict(lambda: {
+        '200': 0, '4xx': 0, '5xx': 0, 'other': 0,
+        'latency_sum': 0, 'request_count': 0, 'est_revenue': 0
+    })
+
+    logs_to_process = list(LOG_BUFFER)
+    LOG_BUFFER.clear()
+
+    for log_data in logs_to_process:
+        json_part = log_data.get('json', {})
+        endpoint = json_part.get('uri')
+        status_code = json_part.get('status_code')
+        timestamp = json_part.get('timestamp')
+        latency = json_part.get('latency_ms', 0)
+        customer_name = json_part.get('customer_name', 'Unknown')
+        client = json_part.get('client', 'Unknown')
+        carrier_name = json_part.get('carrier_name', 'Unknown')
+        method = json_part.get('method', 'Unknown')
+
+        hourly_key = calculate_hourly_key(timestamp)
+        # Match endpoint with or without leading slash
+        pricing_info = pricing_map.get(f"/{endpoint}") or pricing_map.get(endpoint)
+
+        if not hourly_key or not pricing_info:
+            continue
+
+        api = pricing_info.get('api', 'Unknown')
+        price = pricing_info.get('price', 0.0)
+        key_endpoint = f"/{endpoint}" if not endpoint.startswith('/') else endpoint
+
+        key = (hourly_key, customer_name, client, carrier_name, key_endpoint, api, method)
+        
+        agg = aggregates[key]
+        if 200 <= status_code < 300: agg['200'] += 1
+        elif 400 <= status_code < 500: agg['4xx'] += 1
+        elif 500 <= status_code < 600: agg['5xx'] += 1
+        else: agg['other'] += 1
+        
+        agg['latency_sum'] += latency
+        agg['request_count'] += 1
+        if 200 <= status_code < 300:
+             agg['est_revenue'] += price
+
+    # --- THIS IS THE NEW DEBUGGING LINE ---
+    # Convert defaultdict to a regular dict for clean JSON serialization
+    final_aggregates_dict = {str(k): v for k, v in aggregates.items()}
+    logging.info(f"PREVIEW of data to be sent to BigQuery:\n{json.dumps(final_aggregates_dict, indent=2)}")
+    # -------------------------------------
+
+    push_to_bigquery(aggregates)
+    
+def push_to_bigquery(aggregates):
+    # Your existing push_to_bigquery logic goes here
+    # ...
+    logging.info(f"Successfully processed and attempted to push {len(aggregates)} aggregated records to BigQuery.")
+
 
 # --- BigQuery Client Initialization ---
 def get_bigquery_client():
@@ -67,7 +151,8 @@ def get_bigquery_client():
             SERVICE_ACCOUNT_FILE,
             scopes=["https://www.googleapis.com/auth/bigquery"]
         )
-        return bigquery.Client(project=BIGQUERY_PROJECT, credentials=credentials)
+        return bigquery.Client(project=GCP_PROJECT_ID, credentials=credentials)
+
     except FileNotFoundError:
         logging.error(f"Service account file not found at: {SERVICE_ACCOUNT_FILE}")
     except Exception as e:
@@ -162,6 +247,12 @@ def push_to_bigquery(aggregates, client):
                 except Exception as e:
                     logging.error(f"BigQuery merge failed: {e}")
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
 
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+
+    # Check for a 'FLASK_DEBUG' environment variable. Default to 'False' if not set.
+    is_debug_mode = os.getenv('FLASK_DEBUG', 'False').lower() in ('true', '1', 't')
+
+    # Run the app with debug mode enabled or disabled based on the environment variable.
+    app.run(host='0.0.0.0', port=8080, debug=is_debug_mode)

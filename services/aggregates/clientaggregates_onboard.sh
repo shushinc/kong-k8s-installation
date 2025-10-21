@@ -37,13 +37,13 @@ read -p "Enter path to client's pricing CSV file [default: ./config/api_pricing.
 PRICING_FILE_PATH=${PRICING_FILE_PATH:-"./config/api_pricing.csv"}
 
 if [ ! -f "$PRICING_FILE_PATH" ]; then
-    echo "❌ Error: Pricing file not found at '$PRICING_FILE_PATH'." >&2
+    echo "s: Pricing file not found at '$PRICING_FILE_PATH'." >&2
     exit 1
 fi
 
 # --- 2. Define and Confirm Resource Names ---
 # The Docker image path is now hardcoded for simplicity.
-IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.1"
+IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.5"
 
 CLIENT_NAME=$(echo "$CLIENT_NAME_INPUT" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]//g')
 BQ_DATASET_ID="${CLIENT_NAME}_kong_analytics"
