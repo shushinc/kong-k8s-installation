@@ -1,0 +1,11 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: global-custom-log
+  namespace: kong
+  labels:
+    global: "true" 
+config:
+  log_method: "POST"
+  log_status_code: 401
+plugin: custom-log-plugin

@@ -50,6 +50,26 @@ The Onboarding Script (clientaggregates_onboard.sh)
 
 4. Next Steps
 
-After running the script, you will have a ./gcp/key.json file.
+After running the script, you will have a ./gcp/[client-name]-sa-key.json file.
 
-Share this key.json file with customer, during deployment
+This key is what you will use to configure the Kong aggregator for this specific client. For example, in a Kubernetes environment, you would:
+
+Create a new Kubernetes Secret from this JSON file.
+kubectl create secret generic [client-name]-gcp-sa-key \
+  --from-file=key.json=.gcp/[client-name]-sa-key.json \
+  -n default
+
+
+  Manually update below values in the config.yaml:
+  1. GCP_PROJECT_ID
+  2. GCP_SERVICE_ACCOUNT_EMAIL
+  3. BIGQUERY_DATASET
+  4. SERVICE_ACCOUNT_FILE_PATH
+
+
+Aftet t
+
+Deploy a new instance of the aggregator, configured to use this new secret.
+```bash
+kubectl create secret generic elangotest-gcp-sa-key --from-file=key.json=./elangotest-sa-key.json
+  ```

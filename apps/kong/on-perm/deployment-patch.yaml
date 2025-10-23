@@ -22,8 +22,10 @@ spec:
 
             # === Log File Settings ===
             - name: KONG_PROXY_ACCESS_LOG
-              value: "/tmp/kong_requests.log"
+              value: "/dev/null"
             - name: KONG_ADMIN_ACCESS_LOG
               value: "off"
             - name: KONG_ERROR_LOG
-              value: "/tmp/kong_error.log"
+              value: "off"
+            - name: KONG_LOG_LEVELo
+              value: "warn" 

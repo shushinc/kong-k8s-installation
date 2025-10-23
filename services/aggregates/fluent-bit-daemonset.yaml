@@ -63,19 +63,9 @@ data:
         Name    grep
         Match   kube.*
         Exclude path  .*\/fluent-bit.*_logging_fluent-bit-.*\.log$
-    # uncomment for the debug
-    # [OUTPUT]
-    #     Name   stdout
-    #     Match  kube.*
-
     [OUTPUT]
-        Name           http
-        Match          *
-        Host           log-sink-elangotest.aggregates.svc.cluster.local
-        Port           8080
-        URI            /ingest
-        Format         json
-        Json_date_key  false
+        Name   stdout
+        Match  kube.*
   parsers.conf: |
     [PARSER]
         Name        cri

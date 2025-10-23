@@ -1,18 +1,19 @@
-# Use the official Kong image as the base
-FROM kong:latest
+# Dockerfile
+FROM kong/kong-gateway:3.9
 
-# Set user to root to have permissions to copy files
+# Ensure any patching steps are executed as root user
 USER root
 
-# Copy your custom plugin source code into the image
-# Replace './your-plugin-name' with the actual path to your plugin's source code
-COPY ./custom-log-plugin /usr/local/share/lua/5.1/kong/plugins/custom-log-plugin
-
-# Set the necessary environment variables
-# Add your plugin's name to the list of plugins to be loaded
+# Add custom plugin to the image
+COPY custom-log-plugin /usr/local/share/lua/5.1/kong/plugins/custom-log-plugin
 ENV KONG_PLUGINS=bundled,custom-log-plugin
-# Update the Lua package path to include your custom plugin
-ENV KONG_LUA_PACKAGE_PATH=/usr/local/share/lua/5.1/?.lua;/usr/local/share/lua/5.1/?/init.lua;;
 
-# Switch back to the kong user
+# Ensure kong user is selected for image execution
 USER kong
+
+# Run kong
+ENTRYPOINT ["/entrypoint.sh"]
+EXPOSE 8000 8443 8001 8444
+STOPSIGNAL SIGQUIT
+HEALTHCHECK --interval=10s --timeout=10s --retries=10 CMD kong health
+CMD ["kong", "docker-start"]

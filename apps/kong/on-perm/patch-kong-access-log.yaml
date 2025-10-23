@@ -12,7 +12,7 @@ spec:
           env:
             # Write access log to a file instead of stdout
             - name: KONG_PROXY_ACCESS_LOG
-              value: "/tmp/kong_requests.log"
+              value: "/dev/null"
             # (optional) also send admin access logs to a file
             - name: KONG_ADMIN_ACCESS_LOG
               value: "off"   # or "/tmp/kong_admin_access.log"

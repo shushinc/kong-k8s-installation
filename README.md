@@ -36,7 +36,7 @@ kubectl apply -n kong -k apps/postgres/on-perm
 ```
 # Wait for Postgres
 ```bash
-kubectl -n kong rollout status statefulset/kong-pg-postgresql --timeout=5m
+kubectl -n kong rollout status statefulset.apps/postgres-kong --timeout=5m
 ```
 # Inspect
 ```bash
@@ -203,20 +203,20 @@ kubectl -n kong get deploy,po,svc | grep jwt-issuer
 Deploy TS 43 Endpoint to KONG:
 # dry-run
 ```bash
-helm upgrade --install ts43-config ./charts/Sherlock -n kong --debug --dry-run
+helm upgrade --install sherlock-kong ./charts/Sherlock -n kong --debug --dry-run
 
 (or)
-helm upgrade --install ts43-config ./charts/Sherlock \
+helm upgrade --install sherlock-kong ./charts/Sherlock \
     -n kong \
     --debug --dry-run \
     --kubeconfig /etc/rancher/k3s/k3s.yaml
   ```
 # apply & wait
 ```bash
-helm upgrade --install ts43-config ./charts/Sherlock -n kong 
+helm upgrade --install sherlock-kong ./charts/Sherlock -n kong 
 
 (or)
-helm upgrade --install ts43-config ./charts/Sherlock \
+helm upgrade --install sherlock-kong ./charts/Sherlock \
     -n kong \
     --kubeconfig /etc/rancher/k3s/k3s.yaml
 ```
@@ -231,50 +231,51 @@ helm upgrade --install ts43-config ./charts/Sherlock \
 ```bash
   test/testDoc-APIGW.txt
   ```
-## deployemnt of kong custom plugins:
-kubectl apply -f services/aggregates/fluent-bit-daemonset.yaml
+
+# (Ignore this If you are not building the Image)docker build and push Custom Log Plugin to Artifactory Registry:
+```bash
+sudo docker buildx build \
+  --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/custom-log-plugin:v1.0.4 \
+  --push .
+  ```
+##
+# Deploy Camera Image
+```bash
+kubectl apply -f apps/kong/logging/fluent-bit-daemonset.yaml
 kubectl -n logging rollout restart ds/fluent-bit
 kubectl logs -f -n logging -l app=fluent-bit 
 
 
-# (Ignore this If you are not building the Image)docker build and push Camera  Image to sherlock-004:
+# Shush Devops step will run  the clientaggregates_onboard.sh  to generate client config on shush side.
+PreRequest:
+Shush  BigQuery projectID
+cleint Name
+
+./clientaggregates_onboard.sh
+
+
+# Deploy Aggregates
+Create a new Kubernetes Secret from this JSON file.
+  kubectl create secret generic [client-name]-gcp-sa-key \
+    --from-file=key.json=.gcp/[client-name]-sa-key.json \
+    -n default
+
+
+
+
+  ```
+## Create a GLOBAL instance (no service/route/consumer) – applies to ALL proxied traffic
 ```bash
-cd services/aggregates
-sudo docker buildx build \
-  --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.6 \
-  --push .
+curl -k -X POST 'https://23.236.58.69:32441/plugins' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'name=custom-log-plugin' \
+  -d 'config.log_method=GET' \
+  -d 'config.log_status_code=401'
   ```
 
-
-## Deployment Of aggragtes:
-# PreRequest from Shush Team:
-1. get the service account key( key.json) from shush team and place its under./services/aggregates/gcp/
-
-2. 
-```bash
-kubectl create namespace aggregates
-  ```
-
-3. 
-```bash
-kubectl create secret generic key \
-  --from-file=key.json=./services/aggregates/gcp/key.json \
-  -n aggregates
-  ```
-4. 
-```bash
-kubectl apply -f ./services/aggregates/config-elangotest.yaml -f ./services/aggregates/deployment-elangotest.yaml 
-  ```
- 
-5. check pods for runnign and logging
- kubectl -n aggregates rollout restart deploy/aggregator-elangotest
- kubectl get pods -n aggregates
- kubectl logs -f -n aggregates -l app=aggregator-elangotest
- 
-
- Restart if needed:
- kubectl -n aggregates rollout restart deploy/aggregator-elangotest
+#aggragates deployemnt:
+kubectl -n kong set image deploy/kong-kong   proxy=us-central1-docker.pkg.dev/sherlock-004/ts43/custom-hello:v1.0.1
 
 
 # TOOLS:
@@ -306,13 +307,5 @@ check kong ENV
 Run Kong In Debug Mode:
 1. kubectl set env deploy/kong-kong KONG_LOG_LEVEL=debug -n kong
 2. kubectl rollout restart deployment kong-kong -n kong
-3. kubectl rollout status deploy/kong-kong -n kong 
+3. kubectl rollout status deployment kong-kong -n kong
 4. kubectl logs deploy/kong-kong -c proxy -f -n kong 
-
-
-
-Aggragate Debug:
-
-kubectl -n kong logs kong-kong-86c6b4f79f-w7bsw -c proxy  | grep '\[custom-log-plugin\]'
-
-kubectl logs -f -n logging -l app=fluent-bit 

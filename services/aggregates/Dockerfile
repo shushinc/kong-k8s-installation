@@ -11,10 +11,13 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the content of the local src directory to the working directory
-COPY aggregates.py .
+COPY aggregator_app.py .
+COPY pricing.csv .
+# You will need to place your service account key here
+COPY your-service-account-key.json ./service-account.json
 
 # Make port 8080 available to the world outside this container
 EXPOSE 8080
-     
-# Run aggregates.pywhen the container launches
-CMD ["python", "aggregates.py"]
+
+# Run aggregator_app.py when the container launches
+CMD ["python", "aggregator_app.py"]
