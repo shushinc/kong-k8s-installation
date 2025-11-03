@@ -1,167 +1,265 @@
+
 import os
-import csv
+import json
 import logging
-from flask import Flask, request, jsonify
-from google.cloud import bigquery
-from google.oauth2 import service_account
-from datetime import datetime, timedelta
-from collections import defaultdict
 import threading
+from collections import defaultdict
+from datetime import datetime, timezone
 
-# --- Flask App Initialization ---
+from flask import Flask, request, jsonify
+
+# Optional BigQuery imports — only used if env vars are provided
+try:
+    from google.cloud import bigquery
+    from google.oauth2 import service_account
+except Exception:  # pragma: no cover
+    bigquery = None
+    service_account = None
+
+# -------------- Config --------------
+# BigQuery config via environment variables
+BQ_PROJECT_ID = os.getenv("BQ_PROJECT_ID")              # e.g. "sherlock-004"
+BQ_DATASET = os.getenv("BQ_DATASET")                    # e.g. "elangotest_kong_analytics"
+BQ_TABLE = os.getenv("BQ_TABLE")                        # e.g. "kong_hourly_aggregates"
+SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")  # path to SA key JSON
+
+# Flask app
 app = Flask(__name__)
-
-# --- In-memory storage and lock ---
-LOG_AGGREGATES = defaultdict(lambda: {
-    '200': 0, '404': 0, 'other': 0,
-    'latency_sum': 0, 'request_count': 0, 'est_revenue': 0
-})
-data_lock = threading.Lock()
-
-# --- Logging Setup ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-# --- Configuration Loading from Environment Variables ---
-# All config is now sourced from the environment, set by the Kubernetes ConfigMap.
-SERVICE_ACCOUNT_FILE = os.environ.get('SERVICE_ACCOUNT_FILE_PATH')
-PRICING_FILE_PATH = os.environ.get('PRICING_FILE_PATH')
-BIGQUERY_PROJECT = os.environ.get('GCP_PROJECT_ID')
-BIGQUERY_DATASET = os.environ.get('BIGQUERY_DATASET')
-BIGQUERY_TABLE = os.environ.get('BIGQUERY_TABLE')
-
-# Validate that all required environment variables are present
-if not all([SERVICE_ACCOUNT_FILE, PRICING_FILE_PATH, BIGQUERY_PROJECT, BIGQUERY_DATASET, BIGQUERY_TABLE]):
-    logging.critical("CRITICAL: Missing one or more required environment variables. Check the aggregator-config ConfigMap.")
-    # In a real scenario, you might want the pod to exit or fail its health check here.
-    
-BIGQUERY_TABLE_REF = f"`{BIGQUERY_PROJECT}.{BIGQUERY_DATASET}.{BIGQUERY_TABLE}`"
+# -------------- In-memory store --------------
+# Keyed by (hour_ts_iso, client, api_path, carrier_name, customer_name)
+# Values contain counters/sums to compute aggregates on demand.
+_aggr = defaultdict(lambda: {
+    "sum_latency": 0.0,
+    "count": 0,
+    "200": 0,
+    "404": 0,
+    "other": 0
+})
+_lock = threading.Lock()
 
 
-# --- Pricing Data Loading ---
-def load_pricing_data(pricing_file_path):
-    pricing_map = {}
-    if not pricing_file_path: return {}
+# -------------- Helpers --------------
+def _parse_hour_bucket(ts_str: str | None, fallback_str: str | None) -> str:
+    """
+    Parse the hour bucket as ISO 8601 string (UTC) like '2025-11-03T10:00:00Z'.
+    Priority:
+      1) 'datatime' coming as 'YYYY-MM-DD HH:00:00' (assumed UTC)
+      2) 'timestamp' ISO (e.g., '2025-11-03T10:56:16Z') floored to hour
+    """
+    dt = None
+    if ts_str:
+        # Expecting 'YYYY-MM-DD HH:MM:SS'
+        try:
+            dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        except ValueError:
+            dt = None
+    if dt is None and fallback_str:
+        try:
+            # Accepts '...Z' or offset; normalize to UTC
+            # Example: '2025-11-03T10:56:16Z'
+            ts = fallback_str.rstrip("Z")
+            if "+" in ts or "-" in ts[10:]:
+                dt = datetime.fromisoformat(fallback_str.replace("Z", "+00:00")).astimezone(timezone.utc)
+            else:
+                dt = datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
+        except Exception:
+            dt = None
+    if dt is None:
+        dt = datetime.utcnow().replace(minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+    dt_floor = dt.replace(minute=0, second=0, microsecond=0)
+    return dt_floor.isoformat().replace("+00:00", "Z")
+
+
+def _status_bucket(code: int | str) -> str:
     try:
-        with open(pricing_file_path, 'r') as csv_file:
-            reader = csv.DictReader(csv_file)
-            for row in reader:
-                endpoint = row.get('Endpoint', '').strip()
-                if endpoint:
-                    pricing_map[endpoint] = {
-                        'price': float(row.get('Price', 0)),
-                        'api': row.get('API', '').strip()
-                    }
-    except FileNotFoundError:
-        logging.error(f"Pricing file not found at: {pricing_file_path}")
-    except Exception as e:
-        logging.error(f"Error loading pricing data: {e}")
-    return pricing_map
+        c = int(code)
+    except Exception:
+        return "other"
+    if c == 200:
+        return "200"
+    if c == 404:
+        return "404"
+    return "other"
 
-PRICING_MAP = load_pricing_data(PRICING_FILE_PATH)
 
-# --- BigQuery Client Initialization ---
-def get_bigquery_client():
-    if not SERVICE_ACCOUNT_FILE: return None
+def _get_bq_client():
+    """Return a BigQuery client if credentials and config are present; else None."""
+    if not (BQ_PROJECT_ID and BQ_DATASET and BQ_TABLE and SERVICE_ACCOUNT_FILE and bigquery and service_account):
+        logging.warning("BigQuery client not configured; aggregation will only be kept in-memory.")
+        return None
     try:
-        credentials = service_account.Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE,
-            scopes=["https://www.googleapis.com/auth/bigquery"]
-        )
-        return bigquery.Client(project=BIGQUERY_PROJECT, credentials=credentials)
-    except FileNotFoundError:
-        logging.error(f"Service account file not found at: {SERVICE_ACCOUNT_FILE}")
+        creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE)
+        return bigquery.Client(project=BQ_PROJECT_ID, credentials=creds)
     except Exception as e:
         logging.error(f"Failed to create BigQuery client: {e}")
-    return None
+        return None
 
-BQ_CLIENT = get_bigquery_client()
 
-# --- The rest of the Flask app logic (ingest, trigger_aggregation, push_to_bigquery) ---
-# This code remains the same as the previous version. I am omitting it here for brevity,
-# but you should include the full content from the previous `aggregator_app.py` file.
-
-@app.route('/ingest', methods=['POST'])
-def ingest_log():
-    log_data = request.json
-    if not isinstance(log_data, list):
-        log_data = [log_data]
-    with data_lock:
-        for record in log_data:
-            parsed_data = record.get('json', {})
-            if not parsed_data: continue
-            attribute = parsed_data.get('uri', 'Unknown')
-            client = parsed_data.get('client', 'Unknown')
-            customer_name = parsed_data.get('customer_name', 'Unknown')
-            carrier_name = parsed_data.get('carrier_name', 'Unknown')
-            method = parsed_data.get('method', 'Unknown')
-            status = str(parsed_data.get('status_code', 'other'))
-            latency = float(parsed_data.get('latency_ms', 0))
-            timestamp_str = parsed_data.get('timestamp', '')
-            if not timestamp_str: continue
-            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-            next_hour = (timestamp + timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-            hourly_key_str = next_hour.isoformat()
-            pricing_info = PRICING_MAP.get(attribute)
-            if not pricing_info: continue
-            api = pricing_info['api']
-            key = (hourly_key_str, customer_name, client, carrier_name, attribute, api, method)
-            agg_store = LOG_AGGREGATES[key]
-            if status == '200': agg_store['200'] += 1
-            elif status == '404': agg_store['404'] += 1
-            else: agg_store['other'] += 1
-            agg_store['latency_sum'] += latency
-            agg_store['request_count'] += 1
-            agg_store['est_revenue'] += pricing_info['price']
-    return jsonify(success=True), 200
-
-@app.route('/trigger_aggregation', methods=['POST'])
-def trigger_aggregation():
-    global LOG_AGGREGATES
-    with data_lock:
-        aggregates_to_push, LOG_AGGREGATES = LOG_AGGREGATES, defaultdict(lambda: {'200': 0, '404': 0, 'other': 0, 'latency_sum': 0, 'request_count': 0, 'est_revenue': 0})
-    if not aggregates_to_push:
-        return jsonify(message="No data to aggregate."), 200
-    if not BQ_CLIENT:
-        return jsonify(message="BigQuery client not configured."), 500
-    push_to_bigquery(aggregates_to_push, BQ_CLIENT)
-    return jsonify(message="Aggregation pushed to BigQuery."), 200
-
-def push_to_bigquery(aggregates, client):
-    merge_query_template = f"""
-    MERGE INTO {BIGQUERY_TABLE_REF} AS target
-    USING (
-        SELECT @datatime AS datatime, @carrier_name AS carrier_name, @client AS client, @customer_name AS customer_name, @endpoint AS endpoint, @attribute AS attribute, @transaction_type AS transaction_type, @transaction_type_count AS transaction_type_count, @total_full_rate_billable_transaction AS total_full_rate_billable_transaction, @total_lower_rate_billable_transaction AS total_lower_rate_billable_transaction, @total_no_billable_transaction AS total_no_billable_transaction, @avg_latency AS avg_latency, @est_revenue AS est_revenue
-    ) AS source ON target.datatime = source.datatime AND target.carrier_name = source.carrier_name AND target.client = source.client AND target.customer_name = source.customer_name AND target.endpoint = source.endpoint AND target.attribute = source.attribute AND target.transaction_type = source.transaction_type
-    WHEN MATCHED THEN UPDATE SET transaction_type_count = source.transaction_type_count, total_full_rate_billable_transaction = source.total_full_rate_billable_transaction, total_lower_rate_billable_transaction = source.total_lower_rate_billable_transaction, total_no_billable_transaction = source.total_no_billable_transaction, avg_latency = source.avg_latency, est_revenue = source.est_revenue
-    WHEN NOT MATCHED THEN INSERT (datatime, carrier_name, client, customer_name, endpoint, attribute, transaction_type, transaction_type_count, total_full_rate_billable_transaction, total_lower_rate_billable_transaction, total_no_billable_transaction, avg_latency, est_revenue) VALUES (source.datatime, source.carrier_name, source.client, source.customer_name, source.endpoint, source.attribute, source.transaction_type, source.transaction_type_count, source.total_full_rate_billable_transaction, source.total_lower_rate_billable_transaction, source.total_no_billable_transaction, source.avg_latency, source.est_revenue);
+# -------------- API --------------
+@app.route("/ingest", methods=["POST"])
+def ingest():
     """
-    for (hourly_key, customer_name, client_name, carrier_name, endpoint, api, method), counts in aggregates.items():
-        avg_latency = counts['latency_sum'] / counts['request_count'] if counts['request_count'] > 0 else 0
-        transaction_types = [{"type": "Successful", "count": counts['200']}, {"type": "Unsuccessful Transactions", "count": counts['404']}, {"type": "Other", "count": counts['other']}]
-        for tx_type in transaction_types:
-            if tx_type["count"] > 0:
-                query_params = [
-                    bigquery.ScalarQueryParameter("datatime", "TIMESTAMP", hourly_key),
-                    bigquery.ScalarQueryParameter("carrier_name", "STRING", carrier_name),
-                    bigquery.ScalarQueryParameter("client", "STRING", client_name),
-                    bigquery.ScalarQueryParameter("customer_name", "STRING", customer_name or None),
-                    bigquery.ScalarQueryParameter("endpoint", "STRING", endpoint),
-                    bigquery.ScalarQueryParameter("attribute", "STRING", api),
-                    bigquery.ScalarQueryParameter("transaction_type", "STRING", tx_type["type"]),
-                    bigquery.ScalarQueryParameter("transaction_type_count", "INT64", tx_type["count"]),
-                    bigquery.ScalarQueryParameter("total_full_rate_billable_transaction", "INT64", counts['200']),
-                    bigquery.ScalarQueryParameter("total_lower_rate_billable_transaction", "INT64", counts['404']),
-                    bigquery.ScalarQueryParameter("total_no_billable_transaction", "INT64", counts['other']),
-                    bigquery.ScalarQueryParameter("avg_latency", "FLOAT64", avg_latency),
-                    bigquery.ScalarQueryParameter("est_revenue", "FLOAT64", counts['est_revenue']),
-                ]
-                job_config = bigquery.QueryJobConfig(query_parameters=query_params)
-                try:
-                    query_job = client.query(merge_query_template, job_config=job_config)
-                    query_job.result()
-                except Exception as e:
-                    logging.error(f"BigQuery merge failed: {e}")
+    Accepts either a single record or a list of records.
+    Each record is expected to have a 'json' object like:
+      {
+        "client": "...",
+        "api_path": "/camara/authorizer",
+        "carrier_name": "Unknown",
+        "customer_name": "Unknown",
+        "status_code": 200,
+        "latency_ms": 83.0,
+        "datatime": "2025-11-03 10:00:00",
+        "timestamp": "2025-11-03T10:56:16Z"
+      }
+    If 'api_path' is missing, we fallback to 'api_path_with_query' (without query part) or derive from 'uri'.
+    """
+    payload = request.get_json(silent=True)
+    if payload is None:
+        return jsonify({"error": "invalid JSON"}), 400
+    records = payload if isinstance(payload, list) else [payload]
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8080)
+    added = 0
+    with _lock:
+        for rec in records:
+            data = rec.get("json") if isinstance(rec, dict) else None
+            if not isinstance(data, dict):
+                # support direct JSON without wrapper
+                data = rec if isinstance(rec, dict) else None
+            if not data:
+                continue
+
+            client = (data.get("client") or "Unknown").strip() or "Unknown"
+            carrier_name = (data.get("carrier_name") or "Unknown").strip() or "Unknown"
+            customer_name = (data.get("customer_name") or "Unknown").strip() or "Unknown"
+
+            # api_path detection
+            api_path = data.get("api_path")
+            if not api_path:
+                api_path = data.get("api_path_with_query")
+                if api_path and "?" in api_path:
+                    api_path = api_path.split("?", 1)[0]
+            if not api_path:
+                # fall back to "uri" (less ideal, but present in your log)
+                api_path = data.get("uri") or "/unknown"
+
+            # time bucketing
+            hour_iso = _parse_hour_bucket(data.get("datatime"), data.get("timestamp"))
+
+            # status + latency
+            status_bucket = _status_bucket(data.get("status_code"))
+            try:
+                latency = float(data.get("latency_ms", 0.0))  # milliseconds
+            except Exception:
+                latency = 0.0
+
+            key = (hour_iso, client, api_path, carrier_name, customer_name)
+            bucket = _aggr[key]
+            bucket["sum_latency"] += latency
+            bucket["count"] += 1
+            bucket[status_bucket] += 1
+            added += 1
+
+    return jsonify({"ingested": added}), 200
+
+
+@app.route("/debug/buffer", methods=["GET"])
+def debug_buffer():
+    """Return current in-memory aggregate state."""
+    with _lock:
+        dump = []
+        for (hour_iso, client, api_path, carrier_name, customer_name), v in _aggr.items():
+            avg_latency = (v["sum_latency"] / v["count"]) if v["count"] else 0.0
+            dump.append({
+                "datatime": hour_iso,
+                "client": client,
+                "api_path": api_path,
+                "carrier_name": carrier_name,
+                "customer_name": customer_name,
+                "total_full_rate_billable_transaction": v["200"],
+                "total_lower_rate_billable_transaction": v["404"],
+                "total_no_billable_transaction": v["other"],
+                "avg_latency": avg_latency,
+                # As requested: est_revenue = average latency of the segment
+                "est_revenue": avg_latency
+            })
+    return jsonify({"buffer_content": dump}), 200
+
+
+@app.route("/trigger_aggregation", methods=["POST"])
+def trigger_aggregation():
+    """
+    Computes aggregates and (if configured) inserts them into BigQuery.
+    For each unique (hour, client, api_path, carrier_name, customer_name) we emit
+    THREE rows (transaction_type = Successful/Unsuccessful Transactions/Other).
+    """
+    with _lock:
+        # snapshot current state and then clear so we don't double-insert
+        snapshot = dict(_aggr)
+        _aggr.clear()
+
+    rows = []
+    for (hour_iso, client, api_path, carrier_name, customer_name), v in snapshot.items():
+        count = max(v["count"], 1)  # guard against div-by-zero
+        avg_latency = v["sum_latency"] / count
+        total_200 = v["200"]
+        total_404 = v["404"]
+        total_other = v["other"]
+
+        triplets = [
+            ("Successful", total_200),
+            ("Unsuccessful Transactions", total_404),
+            ("Other", total_other)
+        ]
+
+        for tx_type, tx_count in triplets:
+            if tx_count <= 0:
+                continue
+            rows.append({
+                "datatime": hour_iso,  # TIMESTAMP
+                "carrier_name": carrier_name,
+                "client": client,
+                "customer_name": customer_name,
+                "endpoint": api_path,
+                "transaction_type": tx_type,
+                "transaction_type_count": tx_count,
+                "total_full_rate_billable_transaction": total_200,
+                "total_lower_rate_billable_transaction": total_404,
+                "total_no_billable_transaction": total_other,
+                "avg_latency": avg_latency,
+                # As requested: est_revenue = average latency of the segment
+                "est_revenue": avg_latency
+            })
+
+    # If BQ is not configured, just return what we'd insert.
+    client_bq = _get_bq_client()
+    if client_bq is None or not rows:
+        return jsonify({"to_insert": rows, "inserted": 0}), 200
+
+    # Insert into BigQuery
+    table_id = f"{BQ_PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}"
+    try:
+        # Convert datatime string to RFC3339 for BQ insert if needed
+        for r in rows:
+            # BigQuery accepts RFC3339; our hour_iso is already '...Z'
+            pass
+        errors = client_bq.insert_rows_json(table_id, rows)
+        if errors:
+            logging.error(f"BigQuery insert errors: {errors}")
+            return jsonify({"inserted": 0, "errors": errors}), 500
+        return jsonify({"inserted": len(rows)}), 200
+    except Exception as e:
+        logging.error(f"BigQuery insertion failed: {e}")
+        return jsonify({"inserted": 0, "error": str(e)}), 500
+
+
+@app.route("/", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
+
+
+if __name__ == "__main__":
+    # Run Flask app
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", "8080")))
 
