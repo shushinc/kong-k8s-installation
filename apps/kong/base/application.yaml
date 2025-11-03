@@ -11,7 +11,7 @@ spec:
     # === Enterprise image ===
     image:
       repository: us-central1-docker.pkg.dev/sherlock-004/ts43/custom-log-plugin
-      tag: v1.0.4
+      tag: v1.0.5
       pullPolicy: IfNotPresent
     # === Enable Enterprise & supply license in license.json ===
     enterprise:

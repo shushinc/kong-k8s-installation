@@ -68,9 +68,15 @@ data:
         Exclude path  .*\/fluent-bit.*_aggregates_fluent-bit-.*\.log$
 
     [OUTPUT]
-        Name   stdout
-        Match  kube.*
-
+        Name    http
+        Match   kube.*
+        Host    log-sink-svc
+        Port    8080
+        URI     /ingest
+        Format  json
+        Json_date_key timestamp
+        Retry_Limit False
+        
   parsers.conf: |
     [PARSER]
         Name        cri
@@ -136,4 +142,3 @@ spec:
         - name: config
           configMap:
             name: fluent-bit-config
-

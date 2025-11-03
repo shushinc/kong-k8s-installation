@@ -40,7 +40,7 @@ spec:
       serviceAccountName: aggregator-sa-elangotest
       containers:
       - name: aggregator
-        image: "us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.10"
+        image: "us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.12"
         ports:
         - containerPort: 8080
         envFrom:
