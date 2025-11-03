@@ -25,7 +25,7 @@ spec:
       serviceAccountName: aggregator-sa-elangotest
       containers:
       - name: aggregator
-        image: "us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.1"
+        image: "us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.10"
         ports:
         - containerPort: 8080
         envFrom:
@@ -41,7 +41,7 @@ spec:
       volumes:
       - name: gcp-key-volume
         secret:
-          secretName: key
+          secretName: elangotest-gcp-sa-key
       - name: pricing-volume
         configMap:
           name: pricing-config-elangotest
@@ -76,5 +76,5 @@ spec:
             args:
             - "-X"
             - "POST"
-            - "http://log-sink-elangotest.aggregates.svc.cluster.local:8080/trigger_aggregation"
+            - "http://log-sink-elangotest..svc.cluster.local:8080/trigger_aggregation"
           restartPolicy: OnFailure
