@@ -77,7 +77,7 @@ AGGREGATOR_CONFIGMAP_NAME="aggregator-config-${CLIENT_NAME}"
 
 # Define key paths
 KEY_FILE_PATH="./gcp/key.json"
-IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.13-1"
+IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.14"
 
 echo "--------------------------------------------------"
 echo "The following resources will be created/generated:"

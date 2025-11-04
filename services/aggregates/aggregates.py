@@ -17,18 +17,17 @@ except Exception:  # pragma: no cover
 
 # -------------- Config --------------
 # BigQuery config via environment variables
-BQ_PROJECT_ID = os.getenv("BQ_PROJECT_ID")              # e.g. "sherlock-004"
-BQ_DATASET = os.getenv("BQ_DATASET")                    # e.g. "elangotest_kong_analytics"
-BQ_TABLE = os.getenv("BQ_TABLE")                        # e.g. "kong_hourly_aggregates"
-SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")  # path to SA key JSON
+BQ_PROJECT_ID = os.getenv("BQ_PROJECT_ID")              
+BQ_DATASET = os.getenv("BQ_DATASET")                   
+BQ_TABLE = os.getenv("BQ_TABLE")                       
+SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")  
+CARRIER_NAME_OVERRIDE = os.getenv("CARRIER_NAME") or os.getenv("CARRIER_NAME_RAW")
 
 # Flask app
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-# -------------- In-memory store --------------
-# Keyed by (hour_ts_iso, client, api_path, carrier_name, customer_name)
-# Values contain counters/sums to compute aggregates on demand.
+# ----- In-memory store -----
 _aggr = defaultdict(lambda: {
     "count": 0,
     "200": {"count": 0, "latency_sum": 0.0},
@@ -38,14 +37,8 @@ _aggr = defaultdict(lambda: {
 _lock = threading.Lock()
 
 
-# -------------- Helpers --------------
+# -------- Helpers Func------
 def _parse_hour_bucket(ts_str: str | None, fallback_str: str | None) -> str:
-    """
-    Parse the hour bucket as ISO 8601 string (UTC) like '2025-11-03T10:00:00Z'.
-    Priority:
-      1) 'datatime' coming as 'YYYY-MM-DD HH:00:00' (assumed UTC)
-      2) 'timestamp' ISO (e.g., '2025-11-03T10:56:16Z') floored to hour
-    """
     dt = None
     if ts_str:
         # Expecting 'YYYY-MM-DD HH:MM:SS'
@@ -56,7 +49,7 @@ def _parse_hour_bucket(ts_str: str | None, fallback_str: str | None) -> str:
     if dt is None and fallback_str:
         try:
             # Accepts '...Z' or offset; normalize to UTC
-            # Example: '2025-11-03T10:56:16Z'
+            # Example: '2025-11-03T10:56:16Z' ( normaliza the time in carrrier server)
             ts = fallback_str.rstrip("Z")
             if "+" in ts or "-" in ts[10:]:
                 dt = datetime.fromisoformat(fallback_str.replace("Z", "+00:00")).astimezone(timezone.utc)
@@ -192,6 +185,7 @@ def debug_buffer():
     with _lock:
         dump = []
         for (hour_iso, client, api_path, carrier_name, customer_name), v in _aggr.items():
+            final_carrier_name = CARRIER_NAME_OVERRIDE if CARRIER_NAME_OVERRIDE else carrier_name
             # totals per status
             total_200 = int(v["200"]["count"])
             total_404 = int(v["404"]["count"])
@@ -206,7 +200,7 @@ def debug_buffer():
                 "datatime": hour_iso,
                 "client": client,
                 "api_path": api_path,
-                "carrier_name": carrier_name,
+                "carrier_name": final_carrier_name,
                 "customer_name": customer_name,
 
                 # counts per status
@@ -228,12 +222,7 @@ def debug_buffer():
 
 @app.route("/trigger_aggregation", methods=["POST"])
 def trigger_aggregation():
-    """
-    Computes aggregates and (if configured) inserts them into BigQuery.
-    For each unique (hour, client, api_path, carrier_name, customer_name) we emit
-    up to THREE rows (transaction_type = Successful / Unsuccessful Transactions / Other).
-    Each row carries its own avg latency (segment-specific), and the total counts per combo.
-    """
+
     with _lock:
         # snapshot current state and then clear so we don't double-insert
         snapshot = dict(_aggr)
@@ -241,6 +230,7 @@ def trigger_aggregation():
 
     rows = []
     for (hour_iso, client, api_path, carrier_name, customer_name), v in snapshot.items():
+        final_carrier_name = CARRIER_NAME_OVERRIDE if CARRIER_NAME_OVERRIDE else carrier_name
         # counts per status
         total_200 = int(v["200"]["count"])
         total_404 = int(v["404"]["count"])
@@ -262,8 +252,8 @@ def trigger_aggregation():
             if tx_count <= 0:
                 continue
             rows.append({
-                "datatime": hour_iso,                   # TIMESTAMP (UTC hour)
-                "carrier_name": carrier_name,
+                "datatime": hour_iso,                   
+                "carrier_name": final_carrier_name,
                 "client": client,
                 "customer_name": customer_name,
                 "endpoint": api_path,
