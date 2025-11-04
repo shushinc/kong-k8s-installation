@@ -1,4 +1,7 @@
-Flask==2.1.2
-Werkzeug<2.1
-google-cloud-bigquery==2.34.4
-google-auth==2.6.6
+Flask==3.0.3
+Werkzeug==3.0.4
+itsdangerous==2.2.0
+Jinja2==3.1.4
+
+google-cloud-bigquery==3.22.0
+google-auth==2.35.0
