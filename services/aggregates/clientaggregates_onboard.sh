@@ -77,7 +77,7 @@ AGGREGATOR_CONFIGMAP_NAME="aggregator-config-${CLIENT_NAME}"
 
 # Define key paths
 KEY_FILE_PATH="./gcp/key.json"
-IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.12"
+IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.13"
 
 echo "--------------------------------------------------"
 echo "The following resources will be created/generated:"
@@ -114,7 +114,7 @@ TABLE_ID="kong_aggregate"
 echo -e "\n[STEP 2/6] Creating BigQuery table: ${BQ_DATASET_ID}.${TABLE_ID}..."
 
 # Define the schema from your image
-SCHEMA="datatime:TIMESTAMP,carrier_name:STRING,client:STRING,customer_name:STRING,endpoint:STRING,attribute:STRING,transaction_type:STRING,transaction_type_count:INT64,total_full_rate_billable_transaction:INT64,total_lower_rate_billable_transaction:INT64,total_no_billable_transaction:INT64,avg_latency:FLOAT64,est_revenue:FLOAT64"
+SCHEMA="datatime:TIMESTAMP,carrier_name:STRING,client:STRING,customer_name:STRING,endpoint:STRING,transaction_type:STRING,transaction_type_count:INT64,total_full_rate_billable_transaction:INT64,total_lower_rate_billable_transaction:INT64,total_no_billable_transaction:INT64,avg_latency_full_rate:FLOAT64,avg_latency_lower_rate:FLOAT64,avg_latency_no_billable:FLOAT64,est_revenue:FLOAT64"
 
 if bq mk --table --description="Aggregated Kong analytics data" "${GCP_PROJECT_ID}:${BQ_DATASET_ID}.${TABLE_ID}" $SCHEMA; then
     echo "Table created successfully."
@@ -268,7 +268,7 @@ spec:
             args:
             - "-X"
             - "POST"
-            - "http://log-sink-${CLIENT_NAME}.${K8S_NAMESPACE}.svc.cluster.local:8080/trigger_aggregation"
+            - "http://log-sink-svc.${K8S_NAMESPACE}.svc.cluster.local:8080/trigger_aggregation"
           restartPolicy: OnFailure
 EOF
 

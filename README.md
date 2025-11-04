@@ -232,6 +232,86 @@ helm upgrade --install ts43-config ./charts/Sherlock \
   test/testDoc-APIGW.txt
   ```
 
+
+
+# (Ignore this If you are not building the Image)docker build and push Custom Log Plugin to Artifactory Registry:
+```bash
+sudo docker buildx build \
+  --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/custom-log-plugin:v1.0.5 \
+  --push .
+  ```
+##
+
+
+## Create a GLOBAL instance (no service/route/consumer) – applies to ALL proxied traffic
+```bash
+curl -k -X POST 'https://23.236.58.69:32441/plugins' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'name=custom-log-plugin' \
+  -d 'config.log_method=GET' \
+  -d 'config.log_status_code=401'
+  ```
+
+# Deploy fluentbit
+```bash
+kubectl apply -f services/aggregates/fluent-bit-daemonset.yaml
+kubectl -n aggregates rollout restart ds/fluent-bit
+kubectl logs -f -n aggregates -l app=fluent-bit 
+```
+
+
+# Shush Devops step will run  the clientaggregates_onboard.sh  to generate client config on shush side.
+PreRequest:
+cleint Name
+```bash
+./clientaggregates_onboard.sh
+
+Output:
+install-{clientname}.yaml
+```
+
+# (Ignore this If you are not building the Image)docker build and push Aggregates image to Artifactory Registry:
+```bash
+sudo docker buildx build \
+  --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.12 \
+  --push .
+```
+
+
+# Deploy Aggregates
+```bash
+kubectl apply -f services/aggregates/install-elangotest.yaml
+```
+
+
+##check for pod status:
+```bash
+ kubectl get pods -n aggregates
+ ```
+
+
+## check for the aggregates:
+kubectl -n aggregates exec -it deploy/aggregator-testcarrier --   python -c "import json,urllib.request;print(json.dumps(json.load(urllib.request.urlopen('http://127.0.0.1:8080/debug/buffer')),indent=2))"
+
+## manually push aggregates to BigQuery
+kubectl -n aggregates run py --rm -it --restart=Never --image=python:3.11-alpine -- \
+  sh -lc 'python - <<PY
+import json,urllib.request
+req=urllib.request.Request("http://log-sink-svc:8080/trigger_aggregation",method="POST")
+with urllib.request.urlopen(req) as r:
+    print(json.dumps(json.loads(r.read().decode()), indent=2))
+PY'
+
+
+or 
+
+creates a job:
+kubectl create job --from=cronjob/bq-aggregator-trigger-testcarrier manual-trigger-$(date +%s) -n aggregates
+
+
+
 # TOOLS:
 1. Kong runtime log:
     kubectl -n kong exec -it deploy/kong-kong -c proxy -- sh

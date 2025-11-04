@@ -2,50 +2,50 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: aggregator-config-elangotest
+  name: aggregator-config-testcarrier
   namespace: aggregates
 data:
   GCP_PROJECT_ID: "sherlock-004"
-  GCP_SERVICE_ACCOUNT_EMAIL: "elangotest-kong-aggregator@sherlock-004.iam.gserviceaccount.com"
-  BIGQUERY_DATASET: "elangotest_kong_analytics"
+  GCP_SERVICE_ACCOUNT_EMAIL: "testcarrier-kong-aggregator@sherlock-004.iam.gserviceaccount.com"
+  BIGQUERY_DATASET: "testcarrier_kong_analytics"
   BIGQUERY_TABLE: "kong_aggregate"
   SERVICE_ACCOUNT_FILE_PATH: "/gcp/key.json"
   PRICING_FILE_PATH: "/config/api_pricing.csv"
 
 ---
-# Auto-generated for client: elangotest
+# Auto-generated for client: testcarrier
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: aggregator-sa-elangotest
+  name: aggregator-sa-testcarrier
   namespace: aggregates
   annotations:
-    iam.gke.io/gcp-service-account: "elangotest-kong-aggregator@sherlock-004.iam.gserviceaccount.com"
+    iam.gke.io/gcp-service-account: "testcarrier-kong-aggregator@sherlock-004.iam.gserviceaccount.com"
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: aggregator-elangotest
+  name: aggregator-testcarrier
   namespace: aggregates
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: aggregator-elangotest
+      app: aggregator-testcarrier
   template:
     metadata:
       labels:
-        app: aggregator-elangotest
+        app: aggregator-testcarrier
     spec:
-      serviceAccountName: aggregator-sa-elangotest
+      serviceAccountName: aggregator-sa-testcarrier
       containers:
       - name: aggregator
-        image: "us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.12"
+        image: "us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.13-1"
         ports:
         - containerPort: 8080
         envFrom:
         - configMapRef:
-            name: aggregator-config-elangotest
+            name: aggregator-config-testcarrier
         volumeMounts:
         - name: gcp-key-volume
           mountPath: "/gcp"
@@ -56,10 +56,10 @@ spec:
       volumes:
       - name: gcp-key-volume
         secret:
-          secretName: elangotest-gcp-sa-key
+          secretName: testcarrier-gcp-sa-key
       - name: pricing-volume
         configMap:
-          name: pricing-config-elangotest
+          name: pricing-config-testcarrier
 ---
 apiVersion: v1
 kind: Service
@@ -68,7 +68,7 @@ metadata:
   namespace: aggregates
 spec:
   selector:
-    app: aggregator-elangotest
+    app: aggregator-testcarrier
   ports:
   - protocol: TCP
     port: 8080
@@ -77,7 +77,7 @@ spec:
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: bq-aggregator-trigger-elangotest
+  name: bq-aggregator-trigger-testcarrier
   namespace: aggregates
 spec:
   schedule: "0 * * * *"
@@ -91,17 +91,17 @@ spec:
             args:
             - "-X"
             - "POST"
-            - "http://log-sink-elangotest.aggregates.svc.cluster.local:8080/trigger_aggregation"
+            - "http://log-sink-svc.aggregates.svc.cluster.local:8080/trigger_aggregation"
           restartPolicy: OnFailure
 
 ---
 apiVersion: v1
 data:
-  key.json: ewogICJ0eXBlIjogInNlcnZpY2VfYWNjb3VudCIsCiAgInByb2plY3RfaWQiOiAic2hlcmxvY2stMDA0IiwKICAicHJpdmF0ZV9rZXlfaWQiOiAiZTA4YzllOWQ1MzcwNmRiNmRmZTRhZWFkZmUzYTFjYjBiMmUyNmY5OCIsCiAgInByaXZhdGVfa2V5IjogIi0tLS0tQkVHSU4gUFJJVkFURSBLRVktLS0tLVxuTUlJRXZBSUJBREFOQmdrcWhraUc5dzBCQVFFRkFBU0NCS1l3Z2dTaUFnRUFBb0lCQVFEQ3Y4TDNoVmRvVDFiK1xuQTJNdHdEaTdJRFZWc3FCZno2Q0tGODlLS3N4aTJZWGtjV1Q5U3d6REFHVXNEcUhsVmtkVDMxLzljMUlvNWEzaFxuQm8vVXQ1dzZPMCtzM05GT3VMWFlsTjJ5Z0laczRCemlZWEtlSlVPVEpKU3dkTGVoNnVLMUxNUElDQkx3SlNuSFxucC9GMHc5UGNBOUttZ1R0RHErRjBxTXJ4UlFOSVlyY3M2YWVQUVdjN0IzZlUwZkYvTnllR28rTll0b2tFYXE3aVxuamJ0SFpMYUloaW84dXUwbUhySThFN2ZJUlRqN2h1SXFJek4wWUo4R3BNK085WjRkK2NHRDc2NHBEQWVBUmFnSlxuTlVSTTZGVDdJa0xkaUMzK1Rra3ZoUVdCcUpBamI0cUpzU1d2d05MdUxWVWJ0OGhjTkV3c0RYODhyMmZETkVTOVxuYXNFVDZuSmJBZ01CQUFFQ2dnRUFRK1Y0TXpTRlIwUVY5NlExc1M4cGVDL2YrRnM0NTM1cklZbndocEtLUkZKRFxuQ0dSeVNZNmZTZUw2NHRQTkpMZ2lVUDc1SjlOTFN4L2NNYTVJZWVoenFxZWYvUXZWVzBVeGZPdFZxWlIraVRuUFxuU0N1aU9ybVNLQndpVEt5OGt0SmhyTG1KSGxXV1NLd2tOMHY1ZGZTS0NkUTVYanlDN1hKZ3ZYdlZtUzB1Mms2WFxuS1NNRER5WVZ3eVZtaWxuS1ZjNDFud21jVlhwMEFyZU43S2krRURlTm9oKzZ2Q1Ric0o0VmtBMnNPbGU4WjN5UVxuQi9qbjFKSkdpVEhwRUxrWHk1UGExRHlxK1g1YlBFcDJML2tBQll0VWk0RjM3Nng3eTNWOHkvekhqNmk5bWFucFxueVVwcGVmd09kU0M1SWY5bmlBRFpBWENtdWtSUUpDUUwvQk5yclduKzZRS0JnUUQvTy9nUkVUdkxSdC9CSld1M1xuY0lOTU9WNG5VUGhFNHUrNmMwYVBiN1RQdERFY3JYVjlZL3pLVmtKUlNVY3VSRUtKck1mVWMwbHZ2QVdpWFBtWFxueEtnYk93RnRqcUFvTEMraXAzNGR3blBpclFGQVkwYi9yTjFHNlM3c2podG4vRC9oSkxpYTNKTTU5UCtXKzJWNFxuWnlHL25KS2IzaXFQem9SSGdRQjV2bXNvSXdLQmdRRERWVlpiU0J4eHhkWENGU2g0K1VlUmlxV0lPMmlKZTZ4MVxuaTFlKzFOUW5sL0Zra3J0NExiZlNkbVVScmdpalo1eGZIZGpjVzRZOWE1eitrVHhLeHVDOWFqMnIxT0F5b3Nzblxua1FvL01JM0JnUkdnZlVPTG5jL2NjRFlYanFBM3k1WDJhUGxpblRPS3c2cE1HU2Z3QmFhRitCcDZ1OWdhY1RodVxuMkhnRWp2N1VhUUtCZ0VLUm5JaXZDdjVndE5sR2JrckE0SzNQeEp2U2hYNUtCaWFHREdBNnpWamk4WEErV1lkalxudmJuME40WEY2L2ZJTytaMmx3UDFNYkVmeEFSdDVYZE5CbDlieTJxTXFYN3d6MWZJQVorM2FNdzFQVDlTNVdDblxuOEdxZlJPclR3WmdrZFhDK1NCdXo3ZjVPeFI3VzRNYy9kdERvQUdFQTErNzcrUXBCUGlPQ282WXJBb0dBYU1WTlxuSElrQk9NVTBjbldHejl4bFZ0dFhEa3RQTnU3dkFkMUxvei9reTVma0VsM2gwQVExcE4xOE9JOXdjclVRV3JSWFxuclZvcUZxZXgvWmxKRFpLKzJOb3pXZ2RFZWVSM3N6RkluYndkVEwwK0J5Y3BJNm54NC9zTUNIYW4yVVdKbWpHVVxuRWlEZmxINSt5WEoweVhrK2FIMDdOcm1xb0FRNmtMbnJKZ2JOQ0lFQ2dZQmMwUnErNnduL3l0UE5zMGxMdEJuOFxuOGxkM1VDdWhoemJGa0YxdXpQKzVPaFRUWHhZNEtYTGxuK3FMOEZrMzJFazY3TnZtNTdLck4vQ1VVVitVSk9lOFxuSlhuUUR6M1FSYmFFdyt3SU5KSW1yUWtHVkZTSmU0VlEycWRPcnQ5Yk1hQ2xTbFhhdVd1MUlWb3RxK0ZqeUtIdVxuT1crUVFtdTNZdG5rUFg0S2NHZVF5QT09XG4tLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tXG4iLAogICJjbGllbnRfZW1haWwiOiAiZWxhbmdvdGVzdC1rb25nLWFnZ3JlZ2F0b3JAc2hlcmxvY2stMDA0LmlhbS5nc2VydmljZWFjY291bnQuY29tIiwKICAiY2xpZW50X2lkIjogIjEwMTcwNzU4MzkzMDM3MjY0MTE5MyIsCiAgImF1dGhfdXJpIjogImh0dHBzOi8vYWNjb3VudHMuZ29vZ2xlLmNvbS9vL29hdXRoMi9hdXRoIiwKICAidG9rZW5fdXJpIjogImh0dHBzOi8vb2F1dGgyLmdvb2dsZWFwaXMuY29tL3Rva2VuIiwKICAiYXV0aF9wcm92aWRlcl94NTA5X2NlcnRfdXJsIjogImh0dHBzOi8vd3d3Lmdvb2dsZWFwaXMuY29tL29hdXRoMi92MS9jZXJ0cyIsCiAgImNsaWVudF94NTA5X2NlcnRfdXJsIjogImh0dHBzOi8vd3d3Lmdvb2dsZWFwaXMuY29tL3JvYm90L3YxL21ldGFkYXRhL3g1MDkvZWxhbmdvdGVzdC1rb25nLWFnZ3JlZ2F0b3IlNDBzaGVybG9jay0wMDQuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20iLAogICJ1bml2ZXJzZV9kb21haW4iOiAiZ29vZ2xlYXBpcy5jb20iCn0K
+  key.json: ewogICJ0eXBlIjogInNlcnZpY2VfYWNjb3VudCIsCiAgInByb2plY3RfaWQiOiAic2hlcmxvY2stMDA0IiwKICAicHJpdmF0ZV9rZXlfaWQiOiAiMjQ0OGY3MjI1YWQ4OWIyMGY5NDE1ZWRmZjBkOWJmYzcyOGU5ZDY1MiIsCiAgInByaXZhdGVfa2V5IjogIi0tLS0tQkVHSU4gUFJJVkFURSBLRVktLS0tLVxuTUlJRXZ3SUJBREFOQmdrcWhraUc5dzBCQVFFRkFBU0NCS2t3Z2dTbEFnRUFBb0lCQVFEZ1RHWjEybEFVSnk0cFxuTGRaR3dZNlVaNW53SDZkbGxZRkZSMUJ0NHlCUHl5eVAvTXo3Szk3NkszWFhKL01YTEM1RmE1UEJBNkU3dncwM1xuMnBWRi9qODZkcjhob0wwTVAxekhwOUxkSnRiQkhlLy9Ya3JxUkd0UWR6UG8zaEZaenQ1ajMzUWZtUjNVUG9mYVxuaFdleENKQmc2VHFTbnJjTGFwOHh1REpiU0dRTHhSWnh0K2VidUh1bmNTQ1hUT3dOY2piYkJnTjUxWE9UVS9jT1xuQ0hHOWNYUld6eGhqeWdRWGNybVlwZFVLTFJUNGdQOFpKS2d3OHNDY2tzS1k1akJ2bFNrcnNXUHB0VW9aTEZ2N1xua2xEMmVHMVoxVjV2WnBLalRJL0ozaHJqR2hjbEN5V3V1T3NNRS90cnFHa05Vc0pIajlvZVJZR1BJaXFkd0Ftc1xuZzZrM1JaeEZBZ01CQUFFQ2dnRUFPazhDTDg4Q0ZFc2ZMK3RQa2ZOTmFuMElRcWtuN2p1UWNIOGFoSWFQNXM1dFxubGp6azJNTE40NEVhMEVUOVo5Ky9ZNktVdFkrSkFhd245b1luV2h1L09pYVdoMXB1NnRrcCtHbERZdVJ1M2FNM1xudWM0OGNXdzU3YUFmYVlFWlI1eUVxYmYwU3lhVjM1QWw1d1BaTWVlRkNQeDRrcGNhQktqQ0c3M0RzWUUvS09PbFxuejdDOVlFZGdFUzVJNEtRTDVxWkZ1VmhQNUQyemNrT2E4eTh2Q2Q0bno0bUdaWjAyelZIdDYzeU9YOXAraGxRSVxud0c3dHFaZjU0WlJqbng3Q3Z2aFE0QksySk5BbUNiOUFISjhKbDB2cUtvaUVScTEyNmUxM0hEVkpqODlocXJxSFxuOGZobmtRL2tWSVVUTlNUVzVhVHRpUExoRGd1eUN3VHp6aHNGOWw0bXZRS0JnUUQyZzJvakZjRVN1cVhTMHNTb1xuUE4rcHU0VzMrdjQyWTdHUGlyNDhwVDhFeERra2MwVHZMSFphT2ZZZ0thdVJGWTlxUHRMMjcrOUtXcHo2MTY3a1xudEFHeXRwblh5dG5KZEdxUVhhd1VhTDdhb3g5ZUtiOHV3NjVLWFYxd3NNaVRFUUpsNW5uQTczeXpxbTVsblNxR1xuWHc1U2VaMnAxYmJNWTZtVk9IVlFJVWtIdHdLQmdRRG83aUZWbllCSEVCSDRncmdSNHpQR29qNHRLaGwrYmhVSlxuRDlQQXpuMnhCQmFJU2xKZ21MRWFaTXQ2RnJFc0h5RkNGUGlLZm1hUkxSV3hWOWpiMG4xcjlwdTZscVFwM29zS1xuMVdkU256a0VoNk9OUmphM0pISjhDSjQxcXVPTU1OSTlRZitGVkFmS1BFVDR1S0NmWjJkNHpKcVc3c3ZDWVZuZFxuWFdZMFpyaGo0d0tCZ1FDSkJvRmY0VDdDTjJmbmFXc1JEVTFTSHI5MGhocjZocTN6V1M3bnJQNzdta3NkSE1uTFxubk01bzF1RWQvYXUxYU9PZ0xpMjhQNkNtbHZtOVlWaUJIaUgzZ2hLLzVhenJreitNNGRTK1AzOGZMeDlIaXpNUFxuUG94S0g5M0p2eXF1dlB5MVFjaVoyMFZZNVRxYVZ5T0ZMNTlaYnVxWnRnYjNVOHEyL0h3UlAzOUZ2d0tCZ1FDWFxudjh2bnd4eDNMM2tGdGVQRmc0ZVB1Tk5aQ1R4aXFjVDZpbDBpRjJTN2xqWTN4SE8yaXNPV3RtUDV2aDdlNThqN1xuREQ1L3U2bUdteUN1ME5SdkljcWtNNTF4Q2dNWlkrcWh2RFg4RmM5SHJEWlpLNDBwODR6Q1Vic0FxN3hpOE11SFxuTFNBUzlKTytwVlVwMU42UCt3WG1KU1h4ZnRFd2FjdnA4NWRLUEVHVWtRS0JnUUNISjdzV0VmQitESkdGUWdUeFxuTE9VTjd0bFRtbk5hbGdPa0pnYm1aV01GdHVOdGlkVllkaFpWazhBWmcyNGt5SHJ0U3Z5YStRai9CTmt2bnBlelxuK09FQXJSZ0dLbElVRWxhc0I4QjdiaWorbDVnNHlGK0JpRGh6ZnZRd2JZbUNBbk1NbXl1bTczQWZ4NDcwSWRxL1xueDh6NVZyVUVUb1U4QnVtZXdBbUg0a3dkUWc9PVxuLS0tLS1FTkQgUFJJVkFURSBLRVktLS0tLVxuIiwKICAiY2xpZW50X2VtYWlsIjogInRlc3RjYXJyaWVyLWtvbmctYWdncmVnYXRvckBzaGVybG9jay0wMDQuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20iLAogICJjbGllbnRfaWQiOiAiMTAwOTE3MDY3NDE0NTM3NTU4NzM3IiwKICAiYXV0aF91cmkiOiAiaHR0cHM6Ly9hY2NvdW50cy5nb29nbGUuY29tL28vb2F1dGgyL2F1dGgiLAogICJ0b2tlbl91cmkiOiAiaHR0cHM6Ly9vYXV0aDIuZ29vZ2xlYXBpcy5jb20vdG9rZW4iLAogICJhdXRoX3Byb3ZpZGVyX3g1MDlfY2VydF91cmwiOiAiaHR0cHM6Ly93d3cuZ29vZ2xlYXBpcy5jb20vb2F1dGgyL3YxL2NlcnRzIiwKICAiY2xpZW50X3g1MDlfY2VydF91cmwiOiAiaHR0cHM6Ly93d3cuZ29vZ2xlYXBpcy5jb20vcm9ib3QvdjEvbWV0YWRhdGEveDUwOS90ZXN0Y2Fycmllci1rb25nLWFnZ3JlZ2F0b3IlNDBzaGVybG9jay0wMDQuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20iLAogICJ1bml2ZXJzZV9kb21haW4iOiAiZ29vZ2xlYXBpcy5jb20iCn0K
 kind: Secret
 metadata:
   creationTimestamp: null
-  name: elangotest-gcp-sa-key
+  name: testcarrier-gcp-sa-key
   namespace: aggregates
 
 ---
@@ -149,5 +149,5 @@ data:
 kind: ConfigMap
 metadata:
   creationTimestamp: null
-  name: pricing-config-elangotest
+  name: pricing-config-testcarrier
   namespace: aggregates
