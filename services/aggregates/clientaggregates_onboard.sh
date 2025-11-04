@@ -28,14 +28,14 @@ if [ -z "$GCP_PROJECT_ID" ]; then
     exit 1
 fi
 
-# --- 2. Get Client Name Interactively ---
+# --- 2. Get Carrier Name Interactively ---
 echo ""
 echo "Please enter a name for the new client."
 echo "Use a short, lowercase, URL-friendly name (e.g., 'shush-demandpartner', 'shush-entriprise')."
-read -p "Client Name: " CLIENT_NAME_INPUT
+read -p "Carrier Name: " CLIENT_NAME_INPUT
 
 if [ -z "$CLIENT_NAME_INPUT" ]; then
-    echo "error: Client Name cannot be empty."
+    echo "error: Carrier Name cannot be empty."
     exit 1
 fi
 
@@ -181,6 +181,8 @@ data:
   GOOGLE_APPLICATION_CREDENTIALS: "/gcp/key.json"
   PRICING_FILE_PATH: "/config/api_pricing.csv"
   GCP_SERVICE_ACCOUNT_EMAIL: "${SA_EMAIL}"
+  CARRIER_NAME: "${CLIENT_NAME}"   
+  CARRIER_NAME_RAW: "${CLIENT_NAME_INPUT}
 EOF
 
 echo -e "\n[STEP 6/6] Generating Kubernetes deployment file: deployment-${CLIENT_NAME}.yaml"
