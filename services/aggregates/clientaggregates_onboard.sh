@@ -182,7 +182,7 @@ data:
   PRICING_FILE_PATH: "/config/api_pricing.csv"
   GCP_SERVICE_ACCOUNT_EMAIL: "${SA_EMAIL}"
   CARRIER_NAME: "${CLIENT_NAME}"   
-  CARRIER_NAME_RAW: "${CLIENT_NAME_INPUT}
+  CARRIER_NAME_RAW: "${CLIENT_NAME_INPUT}"
 EOF
 
 echo -e "\n[STEP 6/6] Generating Kubernetes deployment file: deployment-${CLIENT_NAME}.yaml"
