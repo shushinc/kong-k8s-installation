@@ -77,7 +77,7 @@ AGGREGATOR_CONFIGMAP_NAME="aggregator-config-${CLIENT_NAME}"
 
 # Define key paths
 KEY_FILE_PATH="./gcp/key.json"
-IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.14"
+IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.14-2"
 
 echo "--------------------------------------------------"
 echo "The following resources will be created/generated:"
@@ -179,7 +179,7 @@ data:
   BQ_DATASET: "${BQ_DATASET_ID}"
   BQ_TABLE: "kong_aggregate"
   GOOGLE_APPLICATION_CREDENTIALS: "/gcp/key.json"
-  PRICING_FILE_PATH: "/config/api_pricing.csv"
+  PRICING_FILE_PATH: "/config/pricing.csv"
   GCP_SERVICE_ACCOUNT_EMAIL: "${SA_EMAIL}"
   CARRIER_NAME: "${CLIENT_NAME}"   
   CARRIER_NAME_RAW: "${CLIENT_NAME_INPUT}"
