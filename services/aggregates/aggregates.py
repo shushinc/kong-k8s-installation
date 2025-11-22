@@ -4,6 +4,7 @@ import logging
 import threading
 from collections import defaultdict
 from datetime import datetime, timezone
+import csv
 
 from flask import Flask, request, jsonify
 
@@ -15,13 +16,18 @@ except Exception:  # pragma: no cover
     bigquery = None
     service_account = None
 
-# -------------- Config --------------
+# --- Config -----------
 # BigQuery config via environment variables
 BQ_PROJECT_ID = os.getenv("BQ_PROJECT_ID")              
 BQ_DATASET = os.getenv("BQ_DATASET")                   
 BQ_TABLE = os.getenv("BQ_TABLE")                       
 SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")  
 CARRIER_NAME_OVERRIDE = os.getenv("CARRIER_NAME") or os.getenv("CARRIER_NAME_RAW")
+PRICING_FILE_PATH = os.getenv("PRICING_FILE_PATH", "/config/pricing.csv")
+_pricing_lock = threading.Lock()
+_pricing_table = {}
+_pricing_loaded = False
+
 
 # Flask app
 app = Flask(__name__)
@@ -37,11 +43,76 @@ _aggr = defaultdict(lambda: {
 _lock = threading.Lock()
 
 
+def _load_pricing_locked() -> None:
+    import os
+
+    global _pricing_table, _pricing_loaded
+
+    path = PRICING_FILE_PATH
+    table = {}
+
+    if not path or not os.path.exists(path):
+        logging.warning(
+            path,
+        )
+        _pricing_table = {}
+        _pricing_loaded = True
+        return
+
+    try:
+        with open(path, newline="") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                endpoint = (row.get("Endpoint") or "").strip()
+                price_str = (row.get("Price") or "").strip()
+                available = (row.get("Available") or "").strip().upper() == "TRUE"
+                enabled = (row.get("Enabled") or "").strip().upper() == "TRUE"
+
+                # Skip rows without endpoint or price, or not available/enabled
+                if not endpoint or not price_str or not (available and enabled):
+                    continue
+
+                try:
+                    price = float(price_str)
+                except ValueError:
+                    continue
+
+                # normalize keys
+                key = endpoint.split("?", 1)[0].rstrip("/") or "/"
+                table[key] = price
+
+        _pricing_table = table
+        _pricing_loaded = True
+        logging.info(
+            "Loaded %d pricing rows from %s",
+            len(_pricing_table),
+            path,
+        )
+    except Exception as e:
+        logging.error("Failed to load pricing file '%s': %s", path, e)
+        _pricing_table = {}
+        _pricing_loaded = True
+        
+def _price_for_endpoint(endpoint: str) -> float:
+    global _pricing_loaded
+
+    if not endpoint:
+        return 0.0
+
+    key = endpoint.split("?", 1)[0].rstrip("/") or "/"
+
+    if not _pricing_loaded:
+        with _pricing_lock:
+            if not _pricing_loaded:  
+                _load_pricing_locked()
+
+    return float(_pricing_table.get(key, 0.0))
+
 # -------- Helpers Func------
 def _parse_hour_bucket(ts_str: str | None, fallback_str: str | None) -> str:
     dt = None
     if ts_str:
-        # Expecting 'YYYY-MM-DD HH:MM:SS'
+        # Expecting 'YYYY-MM-DD HH:MM:SS' need to match wt
         try:
             dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
         except ValueError:
@@ -196,25 +267,49 @@ def debug_buffer():
             avg_404 = (v["404"]["latency_sum"] / total_404) if total_404 else 0.0
             avg_other = (v["other"]["latency_sum"] / total_other) if total_other else 0.0
 
-            dump.append({
-                "datatime": hour_iso,
-                "client": client,
-                "api_path": api_path,
-                "carrier_name": final_carrier_name,
-                "customer_name": customer_name,
+            # unit price for each  endpoint (per successful transaction)
+            unit_price = _price_for_endpoint(api_path)
+        
+            # emit one row per non-zero segment
+            segments = [
+                ("Successful", total_200, avg_200),
+                ("Unsuccessful Transactions", total_404, avg_404),
+                ("Other", total_other, avg_other),
+            ]
+        
+            for tx_type, tx_count, tx_avg in segments:
+                if tx_count <= 0:
+                    continue
+                # Revenue calculation based on tx_type
+                if tx_type == "Successful":
+                    # Full price
+                    est_revenue = tx_count * unit_price
+                elif tx_type == "Unsuccessful Transactions":
+                    # Half price
+                    est_revenue = tx_count * (unit_price / 2)
+                else:
+                    # Other = no revenue
+                    est_revenue = 0.0
+                    
+                dump.append({
+                    "datatime": hour_iso,
+                    "client": client,
+                    "api_path": api_path,
+                    "carrier_name": final_carrier_name,
+                    "customer_name": customer_name,
 
-                # counts per status
-                "total_full_rate_billable_transaction": total_200,
-                "total_lower_rate_billable_transaction": total_404,
-                "total_no_billable_transaction": total_other,
+                    # counts per status
+                    "total_full_rate_billable_transaction": total_200,
+                    "total_lower_rate_billable_transaction": total_404,
+                    "total_no_billable_transaction": total_other,
 
-                # averages per status
-                "avg_latency_full_rate": avg_200,
-                "avg_latency_lower_rate": avg_404,
-                "avg_latency_no_billable": avg_other,
+                    # averages per status
+                    "avg_latency_full_rate": avg_200,
+                    "avg_latency_lower_rate": avg_404,
+                    "avg_latency_no_billable": avg_other,
 
-                # pick what you want est_revenue to mean (here: full-rate avg)
-                "est_revenue": avg_200
+                    #  est_revenue is calculated based on segments
+                    "est_revenue": est_revenue
             })
     return jsonify({"buffer_content": dump}), 200
 
@@ -236,6 +331,9 @@ def trigger_aggregation():
         total_404 = int(v["404"]["count"])
         total_other = int(v["other"]["count"])
 
+        # unit price for each endpoint (per successful transaction) #check with lee on all endpoint matches
+        unit_price = _price_for_endpoint(api_path)
+    
         # per-status avg latencies
         avg_200 = (v["200"]["latency_sum"] / total_200) if total_200 else 0.0
         avg_404 = (v["404"]["latency_sum"] / total_404) if total_404 else 0.0
@@ -251,6 +349,17 @@ def trigger_aggregation():
         for tx_type, tx_count, tx_avg in segments:
             if tx_count <= 0:
                 continue
+            # Revenue calculation based on tx_type
+            if tx_type == "Successful":
+                # Full price
+                est_revenue = tx_count * unit_price
+            elif tx_type == "Unsuccessful Transactions":
+                # Half price
+                est_revenue = tx_count * (unit_price / 2)
+            else:
+                # Other = no revenue
+                est_revenue = 0.0
+            
             rows.append({
                 "datatime": hour_iso,                   
                 "carrier_name": final_carrier_name,
@@ -273,7 +382,7 @@ def trigger_aggregation():
                 "avg_latency_no_billable": avg_other,
 
                 # as discussed: est_revenue = average latency of the *segment*
-                "est_revenue": tx_avg,
+                "est_revenue": est_revenue
             })
 
     # Insert into BigQuery if configured; otherwise return what would be inserted.
