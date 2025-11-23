@@ -5,6 +5,9 @@ import threading
 from collections import defaultdict
 from datetime import datetime, timezone
 import csv
+import io
+import re
+import requests
 
 from flask import Flask, request, jsonify
 
@@ -94,19 +97,38 @@ def _load_pricing_locked() -> None:
         _pricing_loaded = True
         
 def _price_for_endpoint(endpoint: str) -> float:
+    """
+    Look up the unit price for a given endpoint path.
+    """
     global _pricing_loaded
 
     if not endpoint:
         return 0.0
 
+    # Normalize: strip query and trailing slash
     key = endpoint.split("?", 1)[0].rstrip("/") or "/"
 
+    # Lazy-load pricing if needed
     if not _pricing_loaded:
         with _pricing_lock:
-            if not _pricing_loaded:  
+            if not _pricing_loaded:
                 _load_pricing_locked()
 
-    return float(_pricing_table.get(key, 0.0))
+    # Get the stored value (could be float, str, or dict)
+    val = _pricing_table.get(key, 0.0)
+
+    # If newer logic ever stores dicts like {"price": 4.0026, "currency": "USD"}
+    if isinstance(val, dict):
+        val = (
+            val.get("price")
+            or val.get("Price")
+            or 0.0
+        )
+
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return 0.0
 
 # -------- Helpers Func------
 def _parse_hour_bucket(ts_str: str | None, fallback_str: str | None) -> str:
@@ -181,6 +203,66 @@ def _get_bq_client():
         logging.error(f"Failed to create BigQuery client from service account file: {e}")
         logging.error("This is likely an IAM PERMISSION error (check 'BigQuery Data Editor'/'BigQuery Job User' roles) or 'file not found' (check Secret mount).")
         return None
+
+
+def _update_k8s_configmap(csv_text: str) -> None:
+    """
+    Update the pricing ConfigMap so new pricing survives pod restarts.
+    """
+    cm_name = os.getenv("PRICING_CONFIGMAP_NAME")
+    namespace = os.getenv("POD_NAMESPACE", "aggregates")
+
+    if not cm_name:
+        logging.info("PRICING_CONFIGMAP_NAME not set; skipping ConfigMap update")
+        return
+
+    try:
+        with open("/var/run/secrets/kubernetes.io/serviceaccount/token") as f:
+            token = f.read().strip()
+        ca_path = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+
+        host = os.environ.get("KUBERNETES_SERVICE_HOST", "kubernetes.default.svc")
+        port = os.environ.get("KUBERNETES_SERVICE_PORT", "443")
+
+        url = f"https://{host}:{port}/api/v1/namespaces/{namespace}/configmaps/{cm_name}"
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/merge-patch+json",
+        }
+
+        payload = {
+            "data": {
+                "pricing.csv": csv_text
+            }
+        }
+
+        resp = requests.patch(url, headers=headers, json=payload, verify=ca_path)
+        if resp.status_code not in (200, 201):
+            logging.error(
+                "Failed to patch ConfigMap %s (%s): %s",
+                cm_name, resp.status_code, resp.text
+            )
+        else:
+            logging.info("Successfully updated ConfigMap %s", cm_name)
+    except Exception as e:
+        logging.error("Error updating ConfigMap %s: %s", cm_name, e)
+
+
+def _sanitize_bq_field(name: str) -> str:
+    """
+    Convert CSV header to a BigQuery-safe column name:
+    """
+    if name is None:
+        name = ""
+    name = name.strip()
+    name = re.sub(r"[^0-9a-zA-Z_]", "_", name)
+    if not name:
+        name = "field"
+    # Column name cannot start with digit
+    if name[0].isdigit():
+        name = "_" + name
+    return name
 
 
 # -------------- API --------------
@@ -401,6 +483,139 @@ def trigger_aggregation():
         logging.error(f"BigQuery insertion failed: {e}")
         return jsonify({"inserted": 0, "error": str(e)}), 500
 
+@app.route("/upload_pricing", methods=["POST"])
+def upload_pricing():
+    """
+    Upload a new pricing.csv, reload it in memory, and push it to BigQuery
+    into a dated table pricing_YYYYMMDD.
+
+    Supports:
+      - multipart/form-data: file field named 'file'
+      - JSON: { "csv": "<full csv text>" }
+    """
+    global _pricing_loaded, _pricing_table
+
+    # 1) Get CSV text from multipart or JSON
+    csv_text = None
+
+    # multipart/form-data
+    uploaded_file = request.files.get("file")
+    if uploaded_file:
+        data = uploaded_file.read()
+        if not data:
+            return jsonify({"error": "uploaded file is empty"}), 400
+        try:
+            csv_text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            csv_text = data.decode("latin-1")
+
+    # JSON { "csv": "..." }
+    if csv_text is None:
+        payload = request.get_json(silent=True) or {}
+        csv_text = payload.get("csv")
+        if not csv_text:
+            return jsonify({
+                "error": "no pricing data provided; upload as multipart 'file' or JSON field 'csv'"
+            }), 400
+
+    # 2) Parse CSV and rebuild in-memory pricing table (no file write needed)
+    table = {}
+    reader = csv.DictReader(io.StringIO(csv_text))
+
+    for row in reader:
+        endpoint = (row.get("Endpoint") or "").strip()
+        price_str = (row.get("Price") or "").strip()
+        available = (row.get("Available") or "").strip().upper() == "TRUE"
+        enabled = (row.get("Enabled") or "").strip().upper() == "TRUE"
+
+        # Skip rows without endpoint or price, or not available/enabled
+        if not endpoint or not price_str or not (available and enabled):
+            continue
+
+        try:
+            price = float(price_str)
+        except Exception:
+            logging.warning(f"Invalid price '{price_str}' for endpoint '{endpoint}', skipping")
+            continue
+
+        table[endpoint] = {
+            "price": price,
+            "available": available,
+            "enabled": enabled,
+        }
+
+    with _pricing_lock:
+        _pricing_table = table
+        _pricing_loaded = True
+        rows_in_memory = len(_pricing_table)
+
+    logging.info("Loaded %d pricing rows from upload_pricing", rows_in_memory)
+
+    # 3) Push CSV to BigQuery into pricing_YYYYMMDD (with sanitized column names)
+    client_bq = _get_bq_client()
+    bq_result = {"uploaded": False}
+
+    if client_bq:
+        try:
+            from google.cloud import bigquery as bq_module
+
+            # Re-read CSV and write out a cleaned version with BQ-safe headers
+            input_buf = io.StringIO(csv_text)
+            reader = csv.DictReader(input_buf)
+
+            orig_fieldnames = reader.fieldnames or []
+            sanitized_fieldnames = [_sanitize_bq_field(fn) for fn in orig_fieldnames]
+
+
+            out_buf = io.StringIO()
+            writer = csv.DictWriter(out_buf, fieldnames=sanitized_fieldnames)
+            writer.writeheader()
+
+            for row in reader:
+                out_row = {}
+                for orig, san in zip(orig_fieldnames, sanitized_fieldnames):
+                    out_row[san] = row.get(orig)
+                writer.writerow(out_row)
+
+            cleaned_csv = out_buf.getvalue()
+
+            now_str = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+            table_name = f"pricing_{now_str}"
+            table_id = f"{BQ_PROJECT_ID}.{BQ_DATASET}.{table_name}"      
+
+            job_config = bq_module.LoadJobConfig(
+                source_format=bq_module.SourceFormat.CSV,
+                skip_leading_rows=1,
+                autodetect=True,
+                write_disposition=bq_module.WriteDisposition.WRITE_TRUNCATE,
+            )
+
+            load_job = client_bq.load_table_from_file(
+                io.StringIO(cleaned_csv),
+                table_id,
+                job_config=job_config,
+            )
+            load_job.result()  # wait for completion
+
+            dest_table = client_bq.get_table(table_id)
+            bq_result = {
+                "uploaded": True,
+                "table": table_name,
+                "row_count": dest_table.num_rows,
+            }
+        except Exception as e:
+            logging.error("Failed to load pricing CSV into BigQuery: %s", e)
+            bq_result = {"uploaded": False, "error": str(e)}
+
+    # 4) Update Kubernetes ConfigMap so the new pricing is persisted
+    _update_k8s_configmap(csv_text)
+
+
+    return jsonify({
+        "status": "ok",
+        "pricing_rows_in_memory": rows_in_memory,
+        "bigquery": bq_result,
+    }), 200
 
 @app.route("/", methods=["GET"])
 def health():
