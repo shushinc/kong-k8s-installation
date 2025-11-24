@@ -130,6 +130,22 @@ services:
     service:
         id: de1643db-2ca0-4011-b967-8df7f845d07b
 
+- name: aggregates-service
+  host: log-sink-svc.aggregates.svc.cluster.local
+  port: 8080
+  protocol: http
+  tags:
+    - aggregates
+  routes:
+    - name: upload-pricing-route
+      methods:
+        - POST
+      paths:
+        - /upload_pricing
+      strip_path: false
+      tags:
+        - aggregates
+
 - host: sherlock-service.hudson.svc.cluster.local
   id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
   name: sherlock-api

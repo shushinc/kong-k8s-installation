@@ -203,20 +203,20 @@ kubectl -n kong get deploy,po,svc | grep jwt-issuer
 Deploy TS 43 Endpoint to KONG:
 # dry-run
 ```bash
-helm upgrade --install ts43-config ./charts/Sherlock -n kong --debug --dry-run
+helm upgrade --install sherlock-kong-config ./charts/Sherlock -n kong --debug --dry-run
 
 (or)
-helm upgrade --install ts43-config ./charts/Sherlock \
+helm upgrade --install sherlock-kong-config ./charts/Sherlock \
     -n kong \
     --debug --dry-run \
     --kubeconfig /etc/rancher/k3s/k3s.yaml
   ```
 # apply & wait
 ```bash
-helm upgrade --install ts43-config ./charts/Sherlock -n kong 
+helm upgrade --install sherlock-kong-config  ./charts/Sherlock -n kong 
 
 (or)
-helm upgrade --install ts43-config ./charts/Sherlock \
+helm upgrade --install sherlock-kong-config  ./charts/Sherlock \
     -n kong \
     --kubeconfig /etc/rancher/k3s/k3s.yaml
 ```
@@ -246,7 +246,7 @@ sudo docker buildx build \
 
 ## Create a GLOBAL instance (no service/route/consumer) – applies to ALL proxied traffic
 ```bash
-curl -k -X POST 'https://23.236.58.69:32441/plugins' \
+curl -k -X POST 'https://136.115.229.241:32441/plugins' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -d 'name=custom-log-plugin' \
   -d 'config.log_method=GET' \
@@ -275,7 +275,7 @@ install-{clientname}.yaml
 ```bash
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.13-2 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.14-12 \
   --push .
 ```
 
@@ -293,7 +293,7 @@ kubectl apply -f services/aggregates/install-elangotest.yaml
 
 
 ## check for the aggregates:
-kubectl -n aggregates exec -it deploy/aggregator-testcarrier --   python -c "import json,urllib.request;print(json.dumps(json.load(urllib.request.urlopen('http://127.0.0.1:8080/debug/buffer')),indent=2))"
+kubectl -n aggregates exec -it deploy/aggregator-testnov4 --   python -c "import json,urllib.request;print(json.dumps(json.load(urllib.request.urlopen('http://127.0.0.1:8080/debug/buffer')),indent=2))"
 
 ## manually push aggregates to BigQuery
 kubectl -n aggregates run py --rm -it --restart=Never --image=python:3.11-alpine -- \
@@ -308,7 +308,7 @@ PY'
 or 
 
 creates a job:
-kubectl create job --from=cronjob/bq-aggregator-trigger-testcarrier manual-trigger-$(date +%s) -n aggregates
+kubectl create job --from=cronjob/bq-aggregator-trigger-aggregator-testnov4 manual-trigger-$(date +%s) -n aggregates
 
 
 

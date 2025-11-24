@@ -47,17 +47,13 @@ _lock = threading.Lock()
 
 
 def _load_pricing_locked() -> None:
-    import os
-
     global _pricing_table, _pricing_loaded
 
     path = PRICING_FILE_PATH
     table = {}
 
     if not path or not os.path.exists(path):
-        logging.warning(
-            path,
-        )
+        logging.warning("Pricing file not found: %s", path)
         _pricing_table = {}
         _pricing_loaded = True
         return
@@ -67,7 +63,16 @@ def _load_pricing_locked() -> None:
             reader = csv.DictReader(f)
             for row in reader:
                 endpoint = (row.get("Endpoint") or "").strip()
-                price_str = (row.get("Price") or "").strip()
+
+                # Prefer new column "International Price", but stay compatible with old "Price"
+                price_str = (
+                    (row.get("International Price")
+                     or row.get("InternationalPrice")
+                     or row.get("internationalprice")
+                     or row.get("Price"))
+                    or ""
+                ).strip()
+
                 available = (row.get("Available") or "").strip().upper() == "TRUE"
                 enabled = (row.get("Enabled") or "").strip().upper() == "TRUE"
 
@@ -95,6 +100,7 @@ def _load_pricing_locked() -> None:
         logging.error("Failed to load pricing file '%s': %s", path, e)
         _pricing_table = {}
         _pricing_loaded = True
+
         
 def _price_for_endpoint(endpoint: str) -> float:
     """
@@ -487,11 +493,6 @@ def trigger_aggregation():
 def upload_pricing():
     """
     Upload a new pricing.csv, reload it in memory, and push it to BigQuery
-    into a dated table pricing_YYYYMMDD.
-
-    Supports:
-      - multipart/form-data: file field named 'file'
-      - JSON: { "csv": "<full csv text>" }
     """
     global _pricing_loaded, _pricing_table
 
@@ -524,7 +525,13 @@ def upload_pricing():
 
     for row in reader:
         endpoint = (row.get("Endpoint") or "").strip()
-        price_str = (row.get("Price") or "").strip()
+
+        # Prefer "International Price" but allow older "Price" column
+        price_str = (
+            (row.get("International Price") or row.get("InternationalPrice") or row.get("internationalprice") or row.get("Price"))
+            or ""
+        ).strip()
+
         available = (row.get("Available") or "").strip().upper() == "TRUE"
         enabled = (row.get("Enabled") or "").strip().upper() == "TRUE"
 

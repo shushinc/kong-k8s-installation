@@ -77,7 +77,7 @@ AGGREGATOR_CONFIGMAP_NAME="aggregator-config-${CLIENT_NAME}"
 
 # Define key paths
 KEY_FILE_PATH="./gcp/key.json"
-IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.14-2"
+IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.14-12"
 
 echo "--------------------------------------------------"
 echo "The following resources will be created/generated:"
@@ -90,7 +90,7 @@ echo "Service Account:     $SA_NAME"
 echo "Docker Image Used:   $IMAGE_PATH"
 echo "Key File Name:       $KEY_FILE_PATH"
 echo "K8s Config File:     $CONFIG_FILE_PATH"
-echo "K8s Deployment File: $DEPLOYMENT_FILE_PATH"
+echo "K8s Deployment File: $DEPLOY_FILE"
 echo "--------------------------------------------------"
 read -p "Do you want to proceed? (y/n): " CONFIRM
 if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
@@ -225,6 +225,13 @@ spec:
         envFrom:
         - configMapRef:
             name: aggregator-config-${CLIENT_NAME}
+        env:
+        - name: PRICING_CONFIGMAP_NAME
+          value: "${PRICING_CONFIGMAP_NAME}"
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
         volumeMounts:
         - name: gcp-key-volume
           mountPath: "/gcp"
@@ -272,7 +279,34 @@ spec:
             - "POST"
             - "http://log-sink-svc.${K8S_NAMESPACE}.svc.cluster.local:8080/trigger_aggregation"
           restartPolicy: OnFailure
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: aggregator-configmap-editor-${CLIENT_NAME}
+  namespace: ${K8S_NAMESPACE}
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  resourceNames: ["${PRICING_CONFIGMAP_NAME}"]
+  verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: aggregator-configmap-editor-binding-${CLIENT_NAME}
+  namespace: ${K8S_NAMESPACE}
+subjects:
+- kind: ServiceAccount
+  name: aggregator-sa-${CLIENT_NAME}
+  namespace: ${K8S_NAMESPACE}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: aggregator-configmap-editor-${CLIENT_NAME}
+
 EOF
+
 
 # --- 12. Generate Secret YAML from Key File ---
 echo -e "\n[STEP 8/10] Generating Secret YAML for ${SECRET_NAME}..."
