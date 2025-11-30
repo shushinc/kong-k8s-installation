@@ -3,9 +3,3 @@ kind: Kustomization
 namespace: kong
 resources:
   - ../base
-
-# If you mirror images to GAR, override here:
-# images:
-#   - name: redis
-#     newName: us-central1-docker.pkg.dev/sherlock-004/ts43/redis
-#     newTag: 7.2-alpine

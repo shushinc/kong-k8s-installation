@@ -7,7 +7,9 @@ from datetime import datetime, timezone
 import csv
 import io
 import re
+import time  
 import requests
+import redis
 
 from flask import Flask, request, jsonify
 
@@ -27,10 +29,28 @@ BQ_TABLE = os.getenv("BQ_TABLE")
 SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")  
 CARRIER_NAME_OVERRIDE = os.getenv("CARRIER_NAME") or os.getenv("CARRIER_NAME_RAW")
 PRICING_FILE_PATH = os.getenv("PRICING_FILE_PATH", "/config/pricing.csv")
+# Kong admin for pricing-type lookup
+KONG_ADMIN_URL = os.getenv("KONG_ADMIN_URL")  # e.g. https://kong-kong-admin.kong.svc.cluster.local:8444
+KONG_ADMIN_TOKEN = os.getenv("KONG_ADMIN_TOKEN")  # rightnow, kong admin endpoint are open
+DEFAULT_PRICING_TYPE = (os.getenv("DEFAULT_PRICING_TYPE") or "international").strip().lower()
+CLIENT_PRICING_CACHE_TTL = int(os.getenv("CLIENT_PRICING_CACHE_TTL", "300"))  # seconds
+
+# Redis config
+REDIS_HOST = os.getenv("REDIS_HOST", "ts43-redis.kong.svc.cluster.local")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or None
+# Prefix for client profile keys in Redis
+REDIS_CLIENT_PROFILE_PREFIX = os.getenv("REDIS_CLIENT_PROFILE_PREFIX", "client_profile:")
+
+
 _pricing_lock = threading.Lock()
 _pricing_table = {}
 _pricing_loaded = False
 
+# client -> (pricing_type, cached_at_epoch)
+_client_pricing_cache = {}
+_client_pricing_lock = threading.Lock()
 
 # Flask app
 app = Flask(__name__)
@@ -45,8 +65,41 @@ _aggr = defaultdict(lambda: {
 })
 _lock = threading.Lock()
 
+redis_client = redis.Redis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    db=REDIS_DB,
+    password=REDIS_PASSWORD,  
+    decode_responses=True,
+)
+
+# --- Redis Client ---
+_redis_client = None
+def get_redis_client():
+    global _redis_client
+    if _redis_client is None:
+        try:
+            log.info(f"Connecting to Redis at {REDIS_HOST}:{REDIS_PORT}")
+            _redis_client = redis.StrictRedis(
+                host=REDIS_HOST,
+                port=REDIS_PORT,
+                password=REDIS_PASSWORD,  
+                decode_responses=True,
+                socket_timeout=2,
+                socket_connect_timeout=2,
+            )
+            _redis_client.ping()
+            log.info("Successfully connected to Redis.")
+        except Exception as e:
+            log.error(f"Could not connect to Redis: {e}", exc_info=True)
+            _redis_client = None
+            raise
+    return _redis_client
 
 def _load_pricing_locked() -> None:
+    """
+    Load pricing from CSV into an in-memory dict.
+    """
     global _pricing_table, _pricing_loaded
 
     path = PRICING_FILE_PATH
@@ -58,36 +111,61 @@ def _load_pricing_locked() -> None:
         _pricing_loaded = True
         return
 
+    def _safe_float(value):
+        if value is None:
+            return None
+        try:
+            s = str(value).strip()
+            if not s:
+                return None
+            return float(s)
+        except Exception:
+            return None
+
     try:
         with open(path, newline="") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 endpoint = (row.get("Endpoint") or "").strip()
-
-                # Prefer new column "International Price", but stay compatible with old "Price"
-                price_str = (
-                    (row.get("International Price")
-                     or row.get("InternationalPrice")
-                     or row.get("internationalprice")
-                     or row.get("Price"))
-                    or ""
-                ).strip()
-
-                available = (row.get("Available") or "").strip().upper() == "TRUE"
-                enabled = (row.get("Enabled") or "").strip().upper() == "TRUE"
-
-                # Skip rows without endpoint or price, or not available/enabled
-                if not endpoint or not price_str or not (available and enabled):
+                if not endpoint:
                     continue
 
-                try:
-                    price = float(price_str)
-                except ValueError:
-                    continue
-
-                # normalize keys
+                # Normalize endpoint (strip query parameters, trailing slash)
                 key = endpoint.split("?", 1)[0].rstrip("/") or "/"
-                table[key] = price
+
+                available = (str(row.get("Available") or "").strip().upper() == "TRUE")
+                enabled = (str(row.get("Enabled") or "").strip().upper() == "TRUE")
+                if not (available and enabled):
+                    continue
+
+                # Try to read separate domestic / international prices if present
+                intl_raw = (
+                    row.get("InternationalPrice")
+                    or row.get("International Price")
+                    or row.get("internationalprice")
+                    or row.get("Price")  # fallback to generic Price column
+                    or ""
+                )
+                dom_raw = (
+                    row.get("DomesticPrice")
+                    or row.get("Domestic Price")
+                    or ""
+                )
+
+                intl_price = _safe_float(intl_raw)
+                dom_price = _safe_float(dom_raw)
+
+                if intl_price is None and dom_price is None:
+                    # As a final fallback, if there is a generic Price column, use that.
+                    generic = _safe_float(row.get("Price"))
+                    if generic is not None:
+                        table[key] = generic
+                    continue
+
+                table[key] = {
+                    "international": intl_price,
+                    "domestic": dom_price,
+                }
 
         _pricing_table = table
         _pricing_loaded = True
@@ -102,17 +180,22 @@ def _load_pricing_locked() -> None:
         _pricing_loaded = True
 
         
-def _price_for_endpoint(endpoint: str) -> float:
+def _price_for_endpoint(endpoint: str | None, pricing_type: str | None = None) -> float:
     """
-    Look up the unit price for a given endpoint path.
+    lookup the  per api call price for the given endpoint and prcing type
     """
     global _pricing_loaded
 
     if not endpoint:
         return 0.0
 
-    # Normalize: strip query and trailing slash
+    # Normalize endpoint: strip query and trailing slash
     key = endpoint.split("?", 1)[0].rstrip("/") or "/"
+
+    if pricing_type:
+        ptype = str(pricing_type).strip().lower()
+    else:
+        ptype = DEFAULT_PRICING_TYPE
 
     # Lazy-load pricing if needed
     if not _pricing_loaded:
@@ -120,21 +203,35 @@ def _price_for_endpoint(endpoint: str) -> float:
             if not _pricing_loaded:
                 _load_pricing_locked()
 
-    # Get the stored value (could be float, str, or dict)
     val = _pricing_table.get(key, 0.0)
 
-    # If newer logic ever stores dicts like {"price": 4.0026, "currency": "USD"}
-    if isinstance(val, dict):
-        val = (
-            val.get("price")
-            or val.get("Price")
-            or 0.0
-        )
+    # Backward-compatible: simple float or numeric string
+    if isinstance(val, (int, float, str)):
+        try:
+            return float(val)
+        except Exception:
+            return 0.0
 
-    try:
-        return float(val)
-    except (TypeError, ValueError):
-        return 0.0
+    # New structure: dict with "international" / "domestic"
+    if isinstance(val, dict):
+        # Try preferred pricing type first
+        primary = val.get(ptype)
+        if primary is not None:
+            try:
+                return float(primary)
+            except Exception:
+                pass
+
+        # Fallback to any available one in deterministic order
+        for candidate in ("international", "domestic"):
+            candidate_val = val.get(candidate)
+            if candidate_val is not None:
+                try:
+                    return float(candidate_val)
+                except Exception:
+                    continue
+
+    return 0.0
 
 # -------- Helpers Func------
 def _parse_hour_bucket(ts_str: str | None, fallback_str: str | None) -> str:
@@ -172,6 +269,74 @@ def _status_bucket(code: int | str) -> str:
     if c == 404:
         return "404"
     return "other"
+
+def _get_client_pricing_type(client: str | None) -> str:
+    """
+    get the client pricing - domestic or international
+    logic:
+      1. in-memroy cache - _client_pricing_cache with TTL
+      2. redis will have client profile (key: client_profile:<client>)
+    """
+    client = (client or "").strip()
+    if not client or client.lower() == "unknown":
+        return DEFAULT_PRICING_TYPE
+
+    now = time.time()
+
+    ## 1)in-memory cache lookup
+    with _client_pricing_lock:
+        cached = _client_pricing_cache.get(client)
+        if cached:
+            cached_type, ts = cached
+            if now - ts < CLIENT_PRICING_CACHE_TTL:
+                return cached_type
+
+    # 2) redis lookup (client_profile:<client>)
+    pricing_type = DEFAULT_PRICING_TYPE
+    try:
+        redis_key = f"{REDIS_CLIENT_PROFILE_PREFIX}{client}"
+        raw = redis_client.get(redis_key)
+        if raw:
+            try:
+                profile = json.loads(raw)
+                pricing_type = (profile.get("pricing_type") or DEFAULT_PRICING_TYPE).strip().lower()
+                if pricing_type not in ("domestic", "international"):
+                    pricing_type = DEFAULT_PRICING_TYPE
+
+                # cache it in memory for fast future lookups
+                with _client_pricing_lock:
+                    _client_pricing_cache[client] = (pricing_type, now)
+
+                return pricing_type
+            except Exception as e:
+                logging.warning(
+                    "Failed to parse Redis client_profile for %s: %s", client, e
+                )
+    except Exception as e:
+        logging.warning("Redis lookup failed for client %s: %s", client, e)
+
+    # 3) Remote lookup (Kong Admin) if configured
+    if KONG_ADMIN_URL:
+        try:
+            url = f"{KONG_ADMIN_URL.rstrip('/')}/consumers/{client}"
+            headers = {}
+            resp = requests.get(url, timeout=2)
+            if resp.ok:
+                data = resp.json()
+                tags = data.get("tags") or []
+                tags_lower = [str(t).lower() for t in tags]
+                if "pricing_domestic" in tags_lower:
+                    pricing_type = "domestic"
+                elif "pricing_international" in tags_lower:
+                    pricing_type = "international"
+        except Exception as exc:
+            logging.warning("Failed to fetch pricing type for client %s: %s", client, exc)
+
+    # 4) Update cache with final decision
+    with _client_pricing_lock:
+        _client_pricing_cache[client] = (pricing_type, now)
+
+    return pricing_type
 
 
 def _get_bq_client():
@@ -327,8 +492,10 @@ def ingest():
                 latency = float(data.get("latency_ms", 0.0))  # milliseconds
             except Exception:
                 latency = 0.0
+                
+            pricing_type = _get_client_pricing_type(client)
 
-            key = (hour_iso, client, api_path, carrier_name, customer_name)
+            key = (hour_iso, client, api_path, carrier_name, customer_name, pricing_type)
             bucket = _aggr[key]
             bucket["count"] += 1
             b = bucket[status_bucket]
@@ -343,7 +510,12 @@ def debug_buffer():
     """Return current in-memory aggregate state."""
     with _lock:
         dump = []
-        for (hour_iso, client, api_path, carrier_name, customer_name), v in _aggr.items():
+        for key, v in _aggr.items():
+            if len(key) == 6:
+                hour_iso, client, api_path, carrier_name, customer_name, pricing_type = key
+            else:
+                hour_iso, client, api_path, carrier_name, customer_name = key
+                pricing_type = DEFAULT_PRICING_TYPE
             final_carrier_name = CARRIER_NAME_OVERRIDE if CARRIER_NAME_OVERRIDE else carrier_name
             # totals per status
             total_200 = int(v["200"]["count"])
@@ -355,16 +527,16 @@ def debug_buffer():
             avg_404 = (v["404"]["latency_sum"] / total_404) if total_404 else 0.0
             avg_other = (v["other"]["latency_sum"] / total_other) if total_other else 0.0
 
-            # unit price for each  endpoint (per successful transaction)
-            unit_price = _price_for_endpoint(api_path)
-        
+            # unit price for each endpoint (per successful transaction)
+            unit_price = _price_for_endpoint(api_path, pricing_type)
+
             # emit one row per non-zero segment
             segments = [
                 ("Successful", total_200, avg_200),
                 ("Unsuccessful Transactions", total_404, avg_404),
                 ("Other", total_other, avg_other),
             ]
-        
+
             for tx_type, tx_count, tx_avg in segments:
                 if tx_count <= 0:
                     continue
@@ -378,7 +550,7 @@ def debug_buffer():
                 else:
                     # Other = no revenue
                     est_revenue = 0.0
-                    
+
                 dump.append({
                     "datatime": hour_iso,
                     "client": client,
@@ -397,8 +569,9 @@ def debug_buffer():
                     "avg_latency_no_billable": avg_other,
 
                     #  est_revenue is calculated based on segments
+                    "pricing_type": pricing_type,
                     "est_revenue": est_revenue
-            })
+                })
     return jsonify({"buffer_content": dump}), 200
 
 
@@ -412,7 +585,12 @@ def trigger_aggregation():
         _aggr.clear()
 
     rows = []
-    for (hour_iso, client, api_path, carrier_name, customer_name), v in snapshot.items():
+    for key, v in snapshot.items():
+        if len(key) == 6:
+            hour_iso, client, api_path, carrier_name, customer_name, pricing_type = key
+        else:
+            hour_iso, client, api_path, carrier_name, customer_name = key
+            pricing_type = DEFAULT_PRICING_TYPE
         final_carrier_name = CARRIER_NAME_OVERRIDE if CARRIER_NAME_OVERRIDE else carrier_name
         # counts per status
         total_200 = int(v["200"]["count"])
@@ -420,8 +598,8 @@ def trigger_aggregation():
         total_other = int(v["other"]["count"])
 
         # unit price for each endpoint (per successful transaction) #check with lee on all endpoint matches
-        unit_price = _price_for_endpoint(api_path)
-    
+        unit_price = _price_for_endpoint(api_path, pricing_type)
+
         # per-status avg latencies
         avg_200 = (v["200"]["latency_sum"] / total_200) if total_200 else 0.0
         avg_404 = (v["404"]["latency_sum"] / total_404) if total_404 else 0.0
@@ -447,9 +625,9 @@ def trigger_aggregation():
             else:
                 # Other = no revenue
                 est_revenue = 0.0
-            
+
             rows.append({
-                "datatime": hour_iso,                   
+                "datatime": hour_iso,
                 "carrier_name": final_carrier_name,
                 "client": client,
                 "customer_name": customer_name,
@@ -470,13 +648,18 @@ def trigger_aggregation():
                 "avg_latency_no_billable": avg_other,
 
                 # as discussed: est_revenue = average latency of the *segment*
+                "pricing_type": pricing_type,
                 "est_revenue": est_revenue
             })
 
     # Insert into BigQuery if configured; otherwise return what would be inserted.
     client_bq = _get_bq_client()
-    if client_bq is None or not rows:
-        return jsonify({"to_insert": rows, "inserted": 0}), 200
+    if client_bq is None:
+        # If BQ is not configured, just return the rows to inspect them.
+        return jsonify({"rows": rows}), 200
+
+    if not rows:
+        return jsonify({"inserted": 0}), 200
 
     table_id = f"{BQ_PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}"
     try:
@@ -624,9 +807,98 @@ def upload_pricing():
         "bigquery": bq_result,
     }), 200
 
-@app.route("/", methods=["GET"])
-def health():
+
+@app.route("/debug/cache", methods=["GET"])
+def debug_cache():
+    """Show current client→pricing_type cache and TTL remaining."""
+    now = time.time()
+    out = []
+
+    with _client_pricing_lock:
+        for client, (ptype, ts) in _client_pricing_cache.items():
+            ttl_left = CLIENT_PRICING_CACHE_TTL - (now - ts)
+            out.append({
+                "client": client,
+                "pricing_type": ptype,
+                "cached_at": ts,
+                "ttl_remaining_seconds": max(0, round(ttl_left, 2))
+            })
+
+    return jsonify({"cache": out}), 200
+
+
+# @app.route("/", methods=["GET"])
+# def health():
+#     return jsonify({"status": "ok"}), 200
+
+@app.route("/healthz", methods=["GET"])
+def healthz():
+    """Simple health endpoint."""
     return jsonify({"status": "ok"}), 200
+
+
+@app.route("/client_profile", methods=["POST"])
+def client_profile():
+    try:
+        body = request.get_json(silent=True) or {}
+    except Exception as e:
+        logging.error("Error parsing JSON in client_profile: %s", e)
+        return jsonify({"error": "invalid_json", "details": str(e)}), 400
+
+    # --- get the  fields safely ---
+    try:
+        client = (body.get("client") or "").strip()
+        client_type = (body.get("client_type") or "").strip().lower()
+        status = (body.get("status") or "").strip().lower()
+        pricing_type = (body.get("pricing_type") or "").strip().lower()
+    except Exception as e:
+        logging.error("Error extracting fields in client_profile: %s", e)
+        return jsonify({"error": "invalid_fields", "details": str(e)}), 400
+
+    # --- all field  validation ---
+    if not client:
+        return jsonify({"error": "client is required"}), 400
+
+    if client_type not in ("demandpartner", "enterprise"):
+        return jsonify({"error": "client_type must be 'demandpartner' or 'enterprise'"}), 400
+
+    if status not in ("active", "inactive"):
+        return jsonify({"error": "status must be 'active' or 'inactive'"}), 400
+
+    if pricing_type not in ("domestic", "international"):
+        return jsonify({"error": "pricing_type must be 'domestic' or 'international'"}), 400
+
+    # --- build client  profile object ---
+    try:
+        profile = {
+            "client": client,
+            "client_type": client_type,
+            "status": status,
+            "pricing_type": pricing_type,
+            "updated_at": datetime.utcnow().isoformat() + "Z",
+        }
+    except Exception as e:
+        logging.error("Error building profile JSON: %s", e)
+        return jsonify({"error": "json_build_failed", "details": str(e)}), 500
+
+    # --- store in Redis ---
+    key = f"client_profile:{client}"
+    try:
+        redis_client.set(key, json.dumps(profile))
+        logging.info("Stored client profile for %s in Redis key=%s", client, key)
+    except Exception as e:
+        logging.error("Redis error storing client profile for %s: %s", client, e)
+        return jsonify({"error": "redis_store_failed", "details": str(e)}), 500
+
+    # --- update pricing cache ---
+    try:
+        now = time.time()
+        with _client_pricing_lock:
+            _client_pricing_cache[client] = (pricing_type, now)
+    except Exception as e:
+        logging.warning("Failed to update local pricing cache for %s: %s", client, e)
+
+    return jsonify({"status": "ok", "profile": profile}), 200
 
 
 if __name__ == "__main__":

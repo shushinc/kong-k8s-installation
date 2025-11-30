@@ -145,6 +145,14 @@ services:
       strip_path: false
       tags:
         - aggregates
+    - name: client-profile-route
+      methods:
+        - POST
+      paths:
+        - /client_profile
+      strip_path: false
+      tags:
+        - aggregates
 
 - host: sherlock-service.hudson.svc.cluster.local
   id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84

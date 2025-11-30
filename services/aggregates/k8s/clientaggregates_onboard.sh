@@ -77,7 +77,7 @@ AGGREGATOR_CONFIGMAP_NAME="aggregator-config-${CLIENT_NAME}"
 
 # Define key paths
 KEY_FILE_PATH="./gcp/key.json"
-IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.14-12"
+IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.15"
 
 echo "--------------------------------------------------"
 echo "The following resources will be created/generated:"
@@ -114,7 +114,7 @@ TABLE_ID="kong_aggregate"
 echo -e "\n[STEP 2/6] Creating BigQuery table: ${BQ_DATASET_ID}.${TABLE_ID}..."
 
 # Define the schema from your image
-SCHEMA="datatime:TIMESTAMP,carrier_name:STRING,client:STRING,customer_name:STRING,endpoint:STRING,transaction_type:STRING,transaction_type_count:INT64,total_full_rate_billable_transaction:INT64,total_lower_rate_billable_transaction:INT64,total_no_billable_transaction:INT64,avg_latency_full_rate:FLOAT64,avg_latency_lower_rate:FLOAT64,avg_latency_no_billable:FLOAT64,est_revenue:FLOAT64"
+SCHEMA="datatime:TIMESTAMP,carrier_name:STRING,client:STRING,customer_name:STRING,endpoint:STRING,pricing_type:STRING,transaction_type:STRING,transaction_type_count:INT64,total_full_rate_billable_transaction:INT64,total_lower_rate_billable_transaction:INT64,total_no_billable_transaction:INT64,avg_latency_full_rate:FLOAT64,avg_latency_lower_rate:FLOAT64,avg_latency_no_billable:FLOAT64,est_revenue:FLOAT64"
 
 if bq mk --table --description="Aggregated Kong analytics data" "${GCP_PROJECT_ID}:${BQ_DATASET_ID}.${TABLE_ID}" $SCHEMA; then
     echo "Table created successfully."
@@ -183,6 +183,12 @@ data:
   GCP_SERVICE_ACCOUNT_EMAIL: "${SA_EMAIL}"
   CARRIER_NAME: "${CLIENT_NAME}"   
   CARRIER_NAME_RAW: "${CLIENT_NAME_INPUT}"
+  # --- moriarty client lookp for  pricing-type ---
+  KONG_ADMIN_URL: "http://kong-kong-admin.kong.svc.cluster.local:8001"
+  DEFAULT_PRICING_TYPE: "international"
+  CLIENT_PRICING_CACHE_TTL: "300"
+  REDIS_HOST: "ts43-redis.kong.svc.cluster.local"
+  REDIS_PORT: "6379"
 EOF
 
 echo -e "\n[STEP 6/6] Generating Kubernetes deployment file: deployment-${CLIENT_NAME}.yaml"
@@ -232,6 +238,21 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: aggregator-config-${CLIENT_NAME}
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: aggregator-config-${CLIENT_NAME}
+              key: REDIS_PORT
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redis-auth
+              key: password
         volumeMounts:
         - name: gcp-key-volume
           mountPath: "/gcp"

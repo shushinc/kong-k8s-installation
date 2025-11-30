@@ -5,3 +5,9 @@ Jinja2==3.1.4
 
 google-cloud-bigquery==3.22.0
 google-auth==2.35.0
+
+python-multipart
+boto3
+redis
+requests
+

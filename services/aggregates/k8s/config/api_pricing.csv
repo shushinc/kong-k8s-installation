@@ -1,10 +1,10 @@
 Available,Enabled,APIAttributes,Endpoint,InternationalPrice,DomesticPrice,EffectiveDate,Currency,MarkupPercentage,DiscountPercentage
 TRUE,TRUE,Silent Authentication,/silent-authentication/v0/retrieve-ip-address,0.0026,0.0026,11/23/2025,USD,15,15
-TRUE,TRUE,Zero Trust,/silent-authentication/v0/verify-ip-address,0.0026,1.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Zero Trust,/silent-authentication/v0/verify-ip-address,0.0026,5.5555,11/23/2025,USD,15,15
 TRUE,TRUE,TS.43 Silent Authentication,/silent-authentication/v2/ts43-retrieve-phone-number,0.0026,2.0026,11/23/2025,USD,15,15
 TRUE,TRUE,TS.43 Zero Trust Silent Authentication,/silent-authentication/v2/ts43-verify-phone-number,0.0026,3.0026,11/23/2025,USD,15,15
 TRUE,TRUE,Verify Number,/number-verification/v0/verify-number,0.0026,4.0026,11/23/2025,USD,15,15
-TRUE,TRUE,CAMARA Number Verification / Number Share,/number-verification/v0/retrieve_phone_number,0.0026,5.0026,11/23/2025,USD,15,15
+TRUE,TRUE,CAMARA Number Verification / Number Share,/number-verification/v0/retrieve_phone_number,0.0026,10.0026,11/23/2025,USD,15,15
 TRUE,TRUE,CAMARA Number Verification / Zero Trust,/number-verification/v0/verify_phone_number,0.0026,6.0026,11/23/2025,USD,15,15
 TRUE,TRUE,Verify Name,/customer-verification/v0/verify-name,0.0141,7.0026,11/23/2025,USD,15,15
 TRUE,TRUE,Verify Billing Address,/customer-verification/v0/verify-billing-address,0.0026,8.0026,11/23/2025,USD,15,15
