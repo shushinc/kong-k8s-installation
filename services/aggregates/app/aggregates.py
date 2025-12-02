@@ -22,25 +22,25 @@ except Exception:  # pragma: no cover
     service_account = None
 
 # --- Config -----------
-# BigQuery config via environment variables
+# bq config via environment variables
 BQ_PROJECT_ID = os.getenv("BQ_PROJECT_ID")              
 BQ_DATASET = os.getenv("BQ_DATASET")                   
 BQ_TABLE = os.getenv("BQ_TABLE")                       
 SERVICE_ACCOUNT_FILE = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")  
 CARRIER_NAME_OVERRIDE = os.getenv("CARRIER_NAME") or os.getenv("CARRIER_NAME_RAW")
 PRICING_FILE_PATH = os.getenv("PRICING_FILE_PATH", "/config/pricing.csv")
-# Kong admin for pricing-type lookup
+# kong cluster admin for pricing-type lookup
 KONG_ADMIN_URL = os.getenv("KONG_ADMIN_URL")  # e.g. https://kong-kong-admin.kong.svc.cluster.local:8444
 KONG_ADMIN_TOKEN = os.getenv("KONG_ADMIN_TOKEN")  # rightnow, kong admin endpoint are open
 DEFAULT_PRICING_TYPE = (os.getenv("DEFAULT_PRICING_TYPE") or "international").strip().lower()
 CLIENT_PRICING_CACHE_TTL = int(os.getenv("CLIENT_PRICING_CACHE_TTL", "300"))  # seconds
 
-# Redis config
+# redis config
 REDIS_HOST = os.getenv("REDIS_HOST", "ts43-redis.kong.svc.cluster.local")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or None
-# Prefix for client profile keys in Redis
+# prefix for client profile keys in Redis
 REDIS_CLIENT_PROFILE_PREFIX = os.getenv("REDIS_CLIENT_PROFILE_PREFIX", "client_profile:")
 
 
@@ -52,11 +52,15 @@ _pricing_loaded = False
 _client_pricing_cache = {}
 _client_pricing_lock = threading.Lock()
 
-# Flask app
+# client -> (client_type, cached_at_epoch)
+_client_type_cache = {}
+_client_type_lock = threading.Lock()
+
+# flask app
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-# ----- In-memory store -----
+#- in-memry store---
 _aggr = defaultdict(lambda: {
     "count": 0,
     "200": {"count": 0, "latency_sum": 0.0},
@@ -143,7 +147,7 @@ def _load_pricing_locked() -> None:
                     row.get("InternationalPrice")
                     or row.get("International Price")
                     or row.get("internationalprice")
-                    or row.get("Price")  # fallback to generic Price column
+                    or row.get("Price")  
                     or ""
                 )
                 dom_raw = (
@@ -155,16 +159,33 @@ def _load_pricing_locked() -> None:
                 intl_price = _safe_float(intl_raw)
                 dom_price = _safe_float(dom_raw)
 
+                # here markup is treated as optional; if missing/invalid then its  0%
+                markup_raw = (
+                    row.get("Markup")
+                    or row.get("Markup%")
+                    or row.get("Markup Percent")
+                    or row.get("Markup_Percent")
+                    or row.get("MarkupPercentage")      
+                    or row.get("Markup Percentage")     
+                    or ""
+                )
+                markup_percent = _safe_float(markup_raw) or 0.0
+
                 if intl_price is None and dom_price is None:
                     # As a final fallback, if there is a generic Price column, use that.
                     generic = _safe_float(row.get("Price"))
                     if generic is not None:
-                        table[key] = generic
+                        table[key] = {
+                            "international": generic,
+                            "domestic": generic,
+                            "markup": markup_percent,
+                        }
                     continue
 
                 table[key] = {
                     "international": intl_price,
                     "domestic": dom_price,
+                    "markup": markup_percent,
                 }
 
         _pricing_table = table
@@ -231,6 +252,36 @@ def _price_for_endpoint(endpoint: str | None, pricing_type: str | None = None) -
                 except Exception:
                     continue
 
+    return 0.0
+
+def _markup_for_endpoint(endpoint: str | None) -> float:
+    """
+    markup % values set at moriarty after ratesheet approval, its client profile.
+    for the given api attributes markup percentage : (0-100) 
+    returns 0.0 if not configured 
+    """
+    global _pricing_loaded
+
+    if not endpoint:
+        return 0.0
+
+    # Normalize endpoint
+    key = endpoint.split("?", 1)[0].rstrip("/") or "/"
+
+    if not _pricing_loaded:
+        with _pricing_lock:
+            if not _pricing_loaded:
+                _load_pricing_locked()
+
+    val = _pricing_table.get(key)
+    if isinstance(val, dict):
+        try:
+            m = val.get("markup")
+            return float(m) if m is not None else 0.0
+        except Exception:
+            return 0.0
+
+    # If pricing table stored simple scalar values, no markup was defined
     return 0.0
 
 # -------- Helpers Func------
@@ -337,6 +388,54 @@ def _get_client_pricing_type(client: str | None) -> str:
         _client_pricing_cache[client] = (pricing_type, now)
 
     return pricing_type
+
+def _get_client_type(client: str | None) -> str:
+    """
+    get client_type either 'enterprise', 'demandpartner' from redis.
+
+    defaults to 'enterprise' if not found.
+    cached in-memory for CLIENT_PRICING_CACHE_TTL seconds.
+    """
+    client = (client or "").strip()
+    if not client or client.lower() == "unknown":
+        # Default assumption; adjust if you prefer demandpartner here
+        return "enterprise"
+
+    now = time.time()
+
+    # 1) in-memory cache lookup
+    with _client_type_lock:
+        cached = _client_type_cache.get(client)
+        if cached:
+            cached_type, ts = cached
+            if now - ts < CLIENT_PRICING_CACHE_TTL:
+                return cached_type
+
+    # 2) redis lookup
+    client_type = "enterprise"
+    try:
+        redis_key = f"{REDIS_CLIENT_PROFILE_PREFIX}{client}"
+        raw = redis_client.get(redis_key)
+        if raw:
+            try:
+                profile = json.loads(raw)
+                client_type = (profile.get("client_type") or "enterprise").strip().lower()
+
+                # cache it
+                with _client_type_lock:
+                    _client_type_cache[client] = (client_type, now)
+
+                return client_type
+            except Exception as e:
+                logging.warning(
+                    "Failed to parse client_type from Redis client_profile for %s: %s",
+                    client,
+                    e,
+                )
+    except Exception as e:
+        logging.warning("Redis error while reading client_type for %s: %s", client, e)
+
+    return client_type
 
 
 def _get_bq_client():
@@ -530,6 +629,10 @@ def debug_buffer():
             # unit price for each endpoint (per successful transaction)
             unit_price = _price_for_endpoint(api_path, pricing_type)
 
+             # client_type + markup
+            client_type = _get_client_type(client)          # 'enterprise' or 'demandpartner'
+            markup_percent = _markup_for_endpoint(api_path) # e.g. 20 for 20%
+
             # emit one row per non-zero segment
             segments = [
                 ("Successful", total_200, avg_200),
@@ -540,17 +643,25 @@ def debug_buffer():
             for tx_type, tx_count, tx_avg in segments:
                 if tx_count <= 0:
                     continue
+                effective_unit_price = unit_price
+                #Apply markup only for enterprise clients
+                # demand partner -> no markup
+                if client_type == "enterprise" and markup_percent:
+                    effective_unit_price = unit_price * (1.0 + (markup_percent / 100.0))
+                
                 # Revenue calculation based on tx_type
                 if tx_type == "Successful":
                     # Full price
-                    est_revenue = tx_count * unit_price
+                    est_revenue = tx_count * effective_unit_price
                 elif tx_type == "Unsuccessful Transactions":
                     # Half price
-                    est_revenue = tx_count * (unit_price / 2)
+                    est_revenue = tx_count * (effective_unit_price / 2)
                 else:
                     # Other = no revenue
                     est_revenue = 0.0
 
+                est_revenue = round(est_revenue, 6)
+                    
                 dump.append({
                     "datatime": hour_iso,
                     "client": client,
@@ -599,6 +710,11 @@ def trigger_aggregation():
 
         # unit price for each endpoint (per successful transaction) #check with lee on all endpoint matches
         unit_price = _price_for_endpoint(api_path, pricing_type)
+        
+        # client_type + markup
+        client_type = _get_client_type(client)          # 'enterprise' or 'demandpartner'
+        markup_percent = _markup_for_endpoint(api_path) # e.g. 20 for 20%
+
 
         # per-status avg latencies
         avg_200 = (v["200"]["latency_sum"] / total_200) if total_200 else 0.0
@@ -615,17 +731,24 @@ def trigger_aggregation():
         for tx_type, tx_count, tx_avg in segments:
             if tx_count <= 0:
                 continue
+            effective_unit_price = unit_price
+            #Apply markup only for enterprise clients
+            # demand partner -> no markup
+            if client_type == "enterprise" and markup_percent:
+                effective_unit_price = unit_price * (1.0 + (markup_percent / 100.0))
+                
             # Revenue calculation based on tx_type
             if tx_type == "Successful":
                 # Full price
-                est_revenue = tx_count * unit_price
+                est_revenue = tx_count * effective_unit_price
             elif tx_type == "Unsuccessful Transactions":
                 # Half price
-                est_revenue = tx_count * (unit_price / 2)
+                est_revenue = tx_count * (effective_unit_price / 2)
             else:
                 # Other = no revenue
                 est_revenue = 0.0
-
+            est_revenue = round(est_revenue, 6)
+            
             rows.append({
                 "datatime": hour_iso,
                 "carrier_name": final_carrier_name,
