@@ -20,6 +20,17 @@ services:
             replace:
               # After stripping, this sets the path to /authorizer for your FastAPI app.
               uri: "/authorizer"
+    - name: camara-authorizer-v2-route
+      paths:
+        - /v2/authorize
+      strip_path: true
+      tags: [auth, camara-v2.0]
+      plugins:
+        - name: request-transformer
+          config:
+            replace:
+              uri: "/v2/authorize"
+              
     - name: camara-token-route
       paths:
         - /camara/token
