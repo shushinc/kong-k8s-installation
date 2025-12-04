@@ -42,14 +42,16 @@ spec:
       admin_gui_api_url: "http://34.68.64.82:32081"
 
     proxy:
-      type: LoadBalancer
+      type: NodePort
       http:
         enabled: true
         servicePort: 80
+        nodePort: 32080
       tls:
         enabled: true
         servicePort: 443
-      externalTrafficPolicy: Cluster
+        nodePort: 32443
+      externalTrafficPolicy: Local
    
     admin:
       enabled: true
