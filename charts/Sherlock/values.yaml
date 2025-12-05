@@ -1,6 +1,13 @@
-kongAdminURL: "http://kong-kong-admin.kong.svc.cluster.local:8001"  
+kongAdminURL: "http://kong-kong-admin.kong.svc.cluster.local:8001"
 stateFileName: "sherlock.kong.yaml"
+
 # currently admin dont neeed any password, so set to false
 rbac:
   enabled: false
-  token: ""  
+  token: ""
+
+deck:
+  # Allowed values:
+  #   - "full"        => sync EVERYTHING in sherlock.kong.yaml (including consumers - only on 1st time running on carrier side)
+  #   - "routes-only" => sync only services/routes, skip consumers & other entities - for upgrade( ex deployemnt of new endpoints)
+  mode: "routes-only"
