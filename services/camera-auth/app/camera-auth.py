@@ -153,7 +153,7 @@ def get_consumer_details_from_kong(client_id: str) -> Tuple[str, str] | None:
 
     try:
         t0 = time.perf_counter()
-        log.info(f"Querying Kong Admin API for OAuth2 credential (client_id={client_id}).")
+        log.debug(f"Querying Kong Admin API for OAuth2 credential (client_id={client_id}).")
         log.debug(f"GET {oauth2_url} params={params}")
         oauth_resp = requests.get(oauth2_url, params=params, timeout=REQ_TIMEOUT, verify=VERIFY_TLS)
         log.debug(f"Kong oauth2 lookup completed in {_duration_ms(t0)} ms with status={oauth_resp.status_code}")
@@ -185,7 +185,7 @@ def get_consumer_details_from_kong(client_id: str) -> Tuple[str, str] | None:
             log.error(f"Incomplete OAuth2 credential data for client_id: {client_id} (app_name: {app_name})")
             return None
 
-        log.info(f"Found OAuth2 app '{app_name}' for client_id={client_id}")
+        log.debug(f"Found OAuth2 app '{app_name}' for client_id={client_id}")
         log.debug(f"Obtained client_secret={_redact(client_secret)} consumer_id={consumer_id}")
 
         # Second call to get consumer username from its ID
@@ -203,7 +203,7 @@ def get_consumer_details_from_kong(client_id: str) -> Tuple[str, str] | None:
             log.error(f"Could not find username for consumer_id: {consumer_id}")
             return None
 
-        log.info(f"Resolved consumer_username={consumer_username} for client_id={client_id}")
+        log.debug(f"Resolved consumer_username={consumer_username} for client_id={client_id}")
         return client_secret, consumer_username
 
     except requests.RequestException as e:
@@ -240,7 +240,7 @@ def store_auth_code(
                   f"'client_secret': '{_redact(client_secret)}', 'consumer_username': '{consumer_username}'}}")
         
         redis_client.setex(redis_key, REDIS_TTL, redis_value)
-        log.info(f"Stored auth context ({api_version}) in Redis for consumer={consumer_username}")
+        log.debug(f"Stored auth context ({api_version}) in Redis for consumer={consumer_username}")
         return True
     except redis.RedisError as e:
         log.error(f"Redis error while storing auth code: {e}")
@@ -263,6 +263,31 @@ def validate_and_get_data_from_code(auth_code: str) -> dict | None:
     except (redis.RedisError, json.JSONDecodeError) as e:
         log.error(f"Error validating code: {e}")
         return None
+
+def _extract_state_from_request_object(request_jwt: str) -> Optional[str]:
+    """
+    gsma  is sending state in request object,so Best-effort extraction of `state` from a JWT-style `request` object.
+    """
+    try:
+        parts = request_jwt.split(".")
+        if len(parts) != 3:
+            log.warning("request object is not a 3-part JWT; cannot extract state")
+            return None
+
+        payload_b64 = parts[1]
+        # Add padding if needed
+        padding = "=" * (-len(payload_b64) % 4)
+        payload_bytes = base64.urlsafe_b64decode(payload_b64 + padding)
+        payload = json.loads(payload_bytes.decode("utf-8"))
+
+        state_val = payload.get("state")
+        log.debug(f"Extracted state from request object: {state_val!r}")
+        return state_val
+    except Exception as e:
+        log.warning(f"Failed to extract state from request object: {e}")
+        return None
+
+
 
 # =========================
 # FastAPI App + Middleware
@@ -338,12 +363,34 @@ def handle_authorization_v2(
     redirect_uri: str = Query(...),
     client_id: str = Query(...),
     scope: Optional[str] = Query(None),
+    request_jwt: Optional[str] = Query(None, alias="request"),
     state: Optional[str] = Query(None),
     prompt: str = Query("none"),
     ipAddress: Optional[str] = Query(None),                
     x_correlator: Optional[str] = Header(default=None, alias="x-correlator"),
 ):
     t0 = time.perf_counter()
+    
+    try:
+        raw_url = str(request.url)
+        method = request.method
+        client_host = request.client.host if request.client else "unknown"
+
+        # Convert headers to dict and sanitize
+        incoming_headers = dict(request.headers)
+        incoming_headers.pop("authorization", None)
+        incoming_headers.pop("cookie", None)
+
+        log.debug(f"Incoming /v2/authorize request:")
+        log.debug(f"Method: {method}")
+        log.debug(f"URL: {raw_url}")
+        log.debug(f"client IP: {client_host}")
+        log.debug(f"Query Params: {dict(request.query_params)}")
+        log.debug(f"Headers: {incoming_headers}")
+
+    except Exception as log_err:
+        log.warning(f"Failed to log incoming request: {log_err}")
+        
     try:
         # --- Resolve IP (prefer explicit ipAddress, then headers, then socket) ---
         xff = request.headers.get("x-forwarded-for", "")
@@ -362,15 +409,25 @@ def handle_authorization_v2(
 
         ipAddress = resolved_ip
 
-        log.info(
+        log.debug(
             f"V2 Authorization request for client_id={client_id}, "
             f"ipAddress={ipAddress}, response_type={response_type}"
         )
-        log.debug(f"Query scope={scope}, state={state}, prompt={prompt}")
+        log.debug(
+
+            f"Query scope={scope}, state={state}, prompt={prompt}, "
+            f"has_request_jwt={bool(request_jwt)}"
+
+        )
 
         if response_type != "code":
-            raise HTTPException(status_code=400, detail="response_type must be 'code'")
+            raise HTTPException(status_code=400, detail="Unsupported response_type. Only 'code' is allowed.")
 
+        # adding basic   validation on redirect_uri 
+        parsed_redirect = urlparse(redirect_uri)
+        if not parsed_redirect.scheme or not parsed_redirect.netloc:
+            raise HTTPException(status_code=400, detail="Invalid redirect_uri")
+        
         # --- External auth call ---
         extra_headers = {"x-correlator": x_correlator} if x_correlator else {}
         ext_headers = _build_outbound_forward_headers(request, extra_headers)
@@ -379,7 +436,7 @@ def handle_authorization_v2(
         if ipAddress:
             ext_params["ipAddress"] = ipAddress
 
-        log.info(f"V2: Calling EXTERNAL_AUTH_URL={EXTERNAL_AUTH_URL}")
+        log.debug(f"V2: Calling EXTERNAL_AUTH_URL={EXTERNAL_AUTH_URL}")
         log.debug(f"V2 External auth params={ext_params} headers={ext_headers}")
 
         t_ext = time.perf_counter()
@@ -419,14 +476,14 @@ def handle_authorization_v2(
         match = auth_json.get("match", False)
 
         if not match:
-            log.info(f"External auth not matched for ipAddress={ipAddress}: {auth_json}")
+            log.debug(f"External auth not matched for ipAddress={ipAddress}: {auth_json}")
             raise HTTPException(status_code=401, detail="Authentication not matched")
 
         if not msisdn_from_ext or not isinstance(msisdn_from_ext, str):
             log.error(f"External auth JSON missing/invalid msisdn: {auth_json}")
             raise HTTPException(status_code=502, detail="External auth response missing msisdn")
 
-        log.info(f"External authentication successful. msisdn={msisdn_from_ext}")
+        log.debug(f"External authentication successful. msisdn={msisdn_from_ext}")
 
         # --- Fetch client_secret + consumer_username from Kong Admin ---
         consumer_details = get_consumer_details_from_kong(client_id)
@@ -450,14 +507,21 @@ def handle_authorization_v2(
             raise HTTPException(status_code=500, detail="Failed to store auth code")
 
         # --- Build redirect URL ---
+        effective_state = state
+        if not effective_state and request_jwt:
+            effective_state = _extract_state_from_request_object(request_jwt)
+        log.debug(
+            f"V2: received state={state!r}, "
+            f"derived state from request={_extract_state_from_request_object(request_jwt) if request_jwt else None!r}, "
+            f"using effective_state={effective_state!r}"
+        )
         query_params = {"code": custom_auth_code}
-        if state:
-            query_params["state"] = state
-
+        if effective_state:
+            query_params["state"] = effective_state
         separator = "&" if "?" in redirect_uri else "?"
         final_redirect_uri = f"{redirect_uri}{separator}{urlencode(query_params)}"
 
-        log.info(
+        log.debug(
             f"V2: Issued auth code for consumer={consumer_username}. "
             f"Redirecting to: {final_redirect_uri}"
         )
