@@ -21,15 +21,8 @@ spec:
             - "{{ .Values.kongAdminURL }}"
             {{- $mode := default "full" .Values.deck.mode }}
             {{- if eq $mode "routes-only" }}
-            # Routes/services-only mode: do NOT touch consumers or other entities
+            # Routes/services-only mode: do NOT touch consumers
             - "--skip-consumers"
-            - "--skip-upstreams"
-            - "--skip-certificates"
-            - "--skip-ca-certificates"
-            - "--skip-snis"
-            - "--skip-vaults"
-            - "--skip-keys"
-            - "--skip-kv"
             {{- end }}
           env:
 {{- if .Values.rbac.enabled }}
