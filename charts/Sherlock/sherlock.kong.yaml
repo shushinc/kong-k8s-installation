@@ -42,7 +42,18 @@ services:
           config:
             replace:
               # After stripping, this sets the path to /token for your FastAPI app.
-              uri: "/token"        
+              uri: "/token"   
+    - name: camara-token-v2-route
+      paths:
+        - /v2/token
+      strip_path: true
+      tags:  [auth, camara-v2.0]
+      # This plugin is added to set the correct upstream path.
+      plugins:
+        - name: request-transformer
+          config:
+            replace:
+              uri: "/v2/token"       
 
 # ADDED: A new service dedicated to handling the OAuth2 flow with plugins
 - name: oauth-provider

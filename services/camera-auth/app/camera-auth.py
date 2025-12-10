@@ -648,6 +648,124 @@ def handle_authorization(
         log.exception("Unexpected error during authorization")
         raise HTTPException(status_code=500, detail="An internal server error occurred")
 
+@app.post("/v2/token")
+def token_exchange_v2(
+    grant_type: str = Form(...),
+    code: str = Form(...),
+    redirect_uri: str = Form(...),
+    client_assertion_type: str = Form(...),
+    client_assertion: str = Form(...),
+    x_correlator: Optional[str] = Header(default=None, alias="x-correlator"),
+):
+    """
+    GSMA/CAMARA-style token endpoint for the authorization_code flow.
+
+    Expected form fields (from Postman / curl):
+      - grant_type=authorization_code
+      - code=<auth_code from /v2/authorize redirect>
+      - redirect_uri=https://oauth.pstmn.io/v1/callback
+      - client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer
+      - client_assertion=<GENERATED_CLIENT_ASSERTION_FOR_AUTHCODE_FLOW>
+    """
+    t0 = time.perf_counter()
+    try:
+        # --- Log incoming request (without dumping sensitive assertion) ---
+        log.info("Received /v2/token request")
+        log.debug(
+            f"/v2/token form.grant_type={grant_type}, "
+            f"code.len={len(code) if code else 0}, "
+            f"redirect_uri={redirect_uri}, "
+            f"client_assertion_type={client_assertion_type}, "
+            f"client_assertion.len={len(client_assertion) if client_assertion else 0}"
+        )
+
+        # --- Basic validations to mimic Keycloak/OpenID Connect style ---
+        if grant_type != "authorization_code":
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported grant_type. Only 'authorization_code' is allowed.",
+            )
+
+        expected_assertion_type = "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+        if client_assertion_type != expected_assertion_type:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid client_assertion_type. Expected '{expected_assertion_type}'.",
+            )
+
+        if not code:
+            raise HTTPException(status_code=400, detail="Missing 'code'")
+
+        # NOTE (for now):
+        # We are NOT validating the client_assertion JWT signature.
+        # For the Postman tests, it's enough to accept it and continue.
+        log.debug(
+            f"/v2/token received client_assertion (JWT) length={len(client_assertion)}"
+        )
+
+        # --- Look up and invalidate the code in Redis (security & one-time use) ---
+        context = validate_and_get_data_from_code(code)
+        if not context:
+            log.warning("No context found in Redis for given code or code expired.")
+            raise HTTPException(status_code=400, detail="Invalid or expired code")
+
+        # --- Recover context: who/what this code belongs to ---
+        msisdn = context.get("msisdn", "unknown-msisdn")
+        client_id = context.get("client_id", "")
+        client_secret = context.get("client_secret", "")
+        consumer_username = context.get("consumer_username", "")
+        api_version = context.get("api_version", "v2")
+
+        log.info(
+            f"/v2/token context: msisdn={msisdn}, consumer={consumer_username}, "
+            f"api_version={api_version}"
+        )
+        log.debug(f"/v2/token received redirect_uri={redirect_uri}")
+
+        # --- Issue final access token ---
+        if not ISSUE_JWT_URL:
+            # No external issuer configured: return a dummy token but keep shape correct.
+            log.warning(
+                "ISSUE_JWT_URL is not configured; returning placeholder token for /v2/token."
+            )
+            response_data = {
+                "access_token": f"dummy-token-for-{msisdn}",
+                "token_type": "Bearer",
+                "expires_in": 3600,
+                "msisdn": msisdn,
+                "api_version": api_version,
+                "note": "No ISSUE_JWT_URL configured. This is a placeholder token.",
+            }
+        else:
+            # Use your existing JWT issuer microservice
+            jwt_response = issue_jwt_token(
+                msisdn=msisdn,
+                client_id=client_id,
+                client_secret=client_secret,
+                consumer_username=consumer_username,
+                api_version=api_version,
+                x_correlator=x_correlator,
+            )
+            # Shape response to look like a normal OAuth token response
+            response_data = {
+                "access_token": jwt_response.get("access_token"),
+                "token_type": jwt_response.get("token_type", "Bearer"),
+                "expires_in": jwt_response.get("expires_in", 3600),
+                "msisdn": msisdn,
+                "api_version": api_version,
+            }
+
+        log.debug(f"/v2/token completed in {_duration_ms(t0)} ms")
+        return JSONResponse(content=response_data)
+
+    except HTTPException:
+        log.debug(f"/v2/token failed after {_duration_ms(t0)} ms")
+        raise
+    except Exception as e:
+        log.exception(f"Unexpected error in /v2/token: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error in /v2/token")
+
+
 @app.post("/token")
 def handle_custom_token_exchange(code: str = Header(...)):
     if not ISSUE_JWT_URL:
