@@ -658,8 +658,6 @@ def token_exchange_v2(
     x_correlator: Optional[str] = Header(default=None, alias="x-correlator"),
 ):
     """
-    GSMA/CAMARA-style token endpoint for the authorization_code flow.
-
     Expected form fields (from Postman / curl):
       - grant_type=authorization_code
       - code=<auth_code from /v2/authorize redirect>
