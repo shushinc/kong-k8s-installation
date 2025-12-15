@@ -80,5 +80,5 @@ spec:
     status:
       enabled: true
 
-    migrations:
-      enabled: true
+migrations:
+  enabled: true
