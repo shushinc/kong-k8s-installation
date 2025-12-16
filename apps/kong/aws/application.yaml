@@ -1,14 +1,19 @@
 
 # === Enterprise image ===
 image:
-  repository: kong/kong-gateway
-  tag: "3.9"             # choose n-1 kong release 
+  repository: us-central1-docker.pkg.dev/sherlock-004/ts43/custom-log-plugin
+  tag: "v1.0.5"            # choose n-1 kong release 
+  pullPolicy: IfNotPresent
 # === Enable Enterprise & supply license in license.json ===
 enterprise:
   enabled: true
   license_secret: kong-enterprise-license
 
 env:
+  proxy_access_log: "/dev/null"
+  KONG_LOG_LEVEL: notice
+  plugins: "bundled,custom-log-plugin"
+  LUA_PACKAGE_PATH: "/usr/local/?.lua;;"
   # DB-mode (OAuth2 needs DB)
   database: "postgres"
   pg_host: "postgres-kong.kong.svc.cluster.local"
@@ -69,8 +74,6 @@ manager:
     enabled: true 
     servicePort: 8445
     nodePort: 30952
-  
-
 
 status:
   enabled: true
