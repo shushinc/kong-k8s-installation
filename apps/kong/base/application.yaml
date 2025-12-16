@@ -10,15 +10,21 @@ spec:
   valuesContent: |-
     # === Enterprise image ===
     image:
-      repository: kong/kong-gateway
-      tag: "3.9"             # choose n-1 kong release 
+      repository: us-central1-docker.pkg.dev/sherlock-004/ts43/custom-log-plugin
+      tag: v1.0.5
+      pullPolicy: IfNotPresent
     # === Enable Enterprise & supply license in license.json ===
     enterprise:
       enabled: true
       license_secret: kong-enterprise-license
 
     env:
-      # DB-mode (OAuth2 needs DB)
+      proxy_access_log: "/dev/null"
+      KONG_LOG_LEVEL: notice
+      plugins: "bundled,custom-log-plugin"
+
+      LUA_PACKAGE_PATH: "/usr/local/?.lua;;"
+      # Database configuration
       database: "postgres"
       pg_host: "postgres-kong.kong.svc.cluster.local"
       pg_port: 5432
@@ -26,21 +32,15 @@ spec:
       pg_password: "supersecret-kong"
       pg_database: "kong"
 
-      # Bootstrap Manager admin (username = kong_admin)
+      # Admin credentials
       password: "SetA-Strong-Admin-Password"
 
-      # Enable Admin API + Manager listeners
+      # Enable Admin API + Manager
       admin_listen: "0.0.0.0:8001, 0.0.0.0:8444 ssl"
       admin_gui_listen: "0.0.0.0:8002, 0.0.0.0:8445 ssl"
+      admin_gui_url: "http://34.68.64.82:30516"
+      admin_gui_api_url: "http://34.68.64.82:32081"
 
-      # Internal URLs for Manager
-      # admin_gui_api_url: "http://kong-kong-admin.kong.svc.cluster.local:8001"
-      # admin_gui_url: "http://kong-kong-manager.kong.svc.cluster.local:8002"
-
-      admin_gui_url: "http://34.61.21.100:30516"
-      admin_gui_api_url: "http://34.61.21.100:32081"
-
-    # Proxy Endpoint
     proxy:
       type: NodePort
       http:
@@ -53,7 +53,6 @@ spec:
         nodePort: 32443
       externalTrafficPolicy: Local
    
-    #kong Admin API - Only Kong Env & System Changes 
     admin:
       enabled: true
       type: NodePort
@@ -66,11 +65,10 @@ spec:
         servicePort: 8444
         nodePort: 32441
 
-    # Kong Admin UI     
     manager:
       enabled: true
       type: NodePort
-      http: 
+      http:
         enabled: true
         servicePort: 8002
         nodePort: 30516
@@ -78,7 +76,6 @@ spec:
         enabled: true 
         servicePort: 8445
         nodePort: 30952
-
 
     status:
       enabled: true

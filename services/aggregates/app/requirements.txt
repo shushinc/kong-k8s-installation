@@ -1,0 +1,13 @@
+Flask==3.0.3
+Werkzeug==3.0.4
+itsdangerous==2.2.0
+Jinja2==3.1.4
+
+google-cloud-bigquery==3.22.0
+google-auth==2.35.0
+
+python-multipart
+boto3
+redis
+requests
+

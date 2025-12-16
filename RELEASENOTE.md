@@ -93,3 +93,6 @@ curl --location 'https://34.61.21.100:32443/number-verification/v0/verify_phone_
 
 ### camera auth v20.5.2
   Added loging info
+
+### camera auth v20.5.3
+  Bugfix for handling credentials from moriarty

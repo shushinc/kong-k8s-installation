@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  # Unique name for this client's configuration
+  name: aggregator-config-elangotest
+  namespace: default
+data:
+  # --- Client-Specific Configuration ---
+  # These values are derived from the onboarding script you just ran
+  GCP_PROJECT_ID: "sherlock-004" # Replace with shush gcp prod projectID
+  # In the below line tempalte : clientname-kong-aggregator@{projectID}.iam.gserviceaccount.com
+  GCP_SERVICE_ACCOUNT_EMAIL: "elangotest-kong-aggregator@sherlock-004.iam.gserviceaccount.com" 
+  # In the below line template: clientname_kong_analytics
+  BIGQUERY_DATASET: "elangotest_kong_analytics"
+  BIGQUERY_TABLE: "kong_aggregate" 
+
+  # --- Static Configuration (usually no changes needed) ---
+  SERVICE_ACCOUNT_FILE_PATH: "/gcp/elangotest-sa-key.json"
+  PRICING_FILE_PATH: "/config/pricing.csv"

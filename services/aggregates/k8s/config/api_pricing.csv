@@ -1,0 +1,42 @@
+Available,Enabled,APIAttributes,Endpoint,InternationalPrice,DomesticPrice,EffectiveDate,Currency,MarkupPercentage,DiscountPercentage
+TRUE,TRUE,Silent Authentication,/silent-authentication/v0/retrieve-ip-address,0.0026,0.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Zero Trust,/silent-authentication/v0/verify-ip-address,0.0026,5.5555,11/23/2025,USD,15,15
+TRUE,TRUE,TS.43 Silent Authentication,/silent-authentication/v2/ts43-retrieve-phone-number,0.0026,2.0026,11/23/2025,USD,15,15
+TRUE,TRUE,TS.43 Zero Trust Silent Authentication,/silent-authentication/v2/ts43-verify-phone-number,0.0026,3.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Verify Number,/number-verification/v0/verify-number,0.0026,4.0026,11/23/2025,USD,15,15
+TRUE,TRUE,CAMARA Number Verification / Number Share,/number-verification/v0/retrieve_phone_number,0.0026,10.0026,11/23/2025,USD,15,15
+TRUE,TRUE,CAMARA Number Verification / Zero Trust,/number-verification/v0/verify_phone_number,0.0026,6.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Verify Name,/customer-verification/v0/verify-name,0.0141,7.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Verify Billing Address,/customer-verification/v0/verify-billing-address,0.0026,8.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Verify Email Address,/customer-verification/v0/verify-email-address,0.0026,9.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Verify Age,/customer-verification/v0/verify-age,0.0026,10.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Verify Bundle,/customer-verification/v0/verify-bundle,0.0026,11.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Customer Type,/account-status/v0/retrieve-customer-type,0.0026,12.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Account Type,/account-status/v0/retrieve-account-type,0.0141,13.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Primary Account Holder,/account-status/v0/retrieve-primary-account-holder,0.1013,14.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Service Activation Date,/account-status/v0/retrieve-service-activation-date,0.0014,15.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Subscriber Account Status,/account-status/v0/retrieve-subscriber-account-status,0.0026,16.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Bundle,/account-status/v0/retrieve-bundle,0.0026,17.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Last Number Change Date,/account-status-change/v0/retrieve-last-number-change-date,0.0026,18.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Subscription Status Change Date,/account-status-change/v0/retrieve-subscription-status-change-date,0.0026,19.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Account Status Change Retrieve Last Primary Name Change Date,/account-status-change/v0/retrieve-last-primary-name-change-date,0.0026,20.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Last Billing Address Change Date,/account-status-change/v0/retrieve-last-billing-address-change-date,0.0026,21.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Msisdn Porting Status,/account-status-change/v0/retrieve-msisdn-porting-status,0.0026,22.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Account Status Change Bundle,/account-status-change/v0/retrieve-bundle,0.0026,23.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Imei Activation Date,/device-sim-status/v0/retrieve-imei-activation-date,0.0138,24.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Imei Change Date,/device-sim-status/v0/retrieve-imei-change-date,0.0702,25.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Imei,/device-sim-status/v0/retrieve-imei,0.8752,26.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Imsi Activation Date,/device-sim-status/v0/retrieve-imsi-activation-date,0.0205,27.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Device Lost Stolen Status,/device-sim-status/v0/retrieve-device-lost-stolen-status,0.1003,28.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Device Lost Stolen Date,/device-sim-status/v0/retrieve-device-lost-stolen-date,0.0599,29.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Check Sim Swap,/device-sim-status/v0/check-sim-swap,0.0026,30.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Imsi Change Date,/device-sim-status/v0/retrieve-imsi-change-date,0.0026,31.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Device Sim Status Bundle,/device-sim-status/v0/retrieve-bundle,0.0026,32.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Call Forwarding,/routing-status/v0/retrieve-call-forwarding,0.0049,33.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Roaming Status,/routing-status/v0/retrieve-roaming-status,0.0762,34.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Routing Status Bundle,/routing-status/v0/retrieve-bundle,0.0565,35.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Active Inbound Call,/in-call-state/v0/retrieve-active-inbound,0.0037,36.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Active Inbound Call,/in-call-state/v0/retrieve-active-outbound,0.0026,37.0026,11/23/2025,USD,15,15
+TRUE,TRUE,In Call State Bundle,/in-call-state/v0/retrieve-bundle,0.0026,38.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Retrieve Device Location,/device-location/v0/retrieve-device-location,0.0026,39.0026,11/23/2025,USD,15,15
+TRUE,TRUE,Device Location Verify,/device-location/v0/verify-device-location,0.0026,40.0026,11/23/2025,USD,15,15

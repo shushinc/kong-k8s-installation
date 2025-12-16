@@ -166,7 +166,7 @@ kubectl -n kong get deploy,po,svc | grep ts43-auth
 cd services/camera-auth/app
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v20.5.2 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v20.5.3 \
   --push .
 ```
 
@@ -176,6 +176,7 @@ cd kong-k8-installation
 Update the Values as per below:
   services/camera-auth/k8s/on-perm/patch-env.yaml
   EXTERNAL_AUTH_URL replace with sherlock ip 
+kubectl apply -k services/camera-auth/k8s/on-perm
 kubectl -n kong get deploy,po,svc | grep camera-auth
 ```
 
@@ -199,26 +200,38 @@ kubectl -n kong get deploy,po,svc | grep jwt-issuer
   ```
 
 
-Deploy TS 43 Endpoint to KONG:
+## Deploy sherlock Endpoint to KONG( For 1st Time Installation):
 # dry-run
 ```bash
-helm upgrade --install ts43-config ./charts/Sherlock -n kong --debug --dry-run
+helm upgrade --install sherlock-kong-config ./charts/Sherlock -n kong  --set deck.mode=full --debug --dry-run
 
 (or)
-helm upgrade --install ts43-config ./charts/Sherlock \
+helm upgrade --install sherlock-kong-config ./charts/Sherlock \
     -n kong \
+    --set deck.mode=full \
     --debug --dry-run \
     --kubeconfig /etc/rancher/k3s/k3s.yaml
   ```
 # apply & wait
 ```bash
-helm upgrade --install ts43-config ./charts/Sherlock -n kong 
+helm upgrade --install sherlock-kong-config  ./charts/Sherlock --set deck.mode=full -n kong 
 
 (or)
-helm upgrade --install ts43-config ./charts/Sherlock \
+helm upgrade --install sherlock-kong-config  ./charts/Sherlock \
     -n kong \
+    --set deck.mode=full \
     --kubeconfig /etc/rancher/k3s/k3s.yaml
-```
+  ```
+
+## Update  sherlock Endpoint to KONG(only for update sherlock endpoints):
+```bash
+helm upgrade --install sherlock-kong-config ./charts/Sherlock -n kong    --set deck.mode=routes-only --debug --dry-run
+  ```
+# apply & wait
+```bash
+helm upgrade --install sherlock-kong-config ./charts/Sherlock -n kong    --set deck.mode=routes-only
+  ```
+
 # In the KONG UI , for gateway service and route
 ```bash
   Example ( replace the host to yours)
@@ -230,6 +243,86 @@ helm upgrade --install ts43-config ./charts/Sherlock \
 ```bash
   test/testDoc-APIGW.txt
   ```
+
+
+
+# (Ignore this If you are not building the Image)docker build and push Custom Log Plugin to Artifactory Registry:
+```bash
+sudo docker buildx build \
+  --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/custom-log-plugin:v1.0.5 \
+  --push .
+  ```
+##
+
+
+## Create a GLOBAL instance (no service/route/consumer) – applies to ALL proxied traffic
+```bash
+curl -k -X POST 'https://136.115.229.241:32441/plugins' \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'name=custom-log-plugin' \
+  -d 'config.log_method=GET' \
+  -d 'config.log_status_code=401'
+  ```
+
+# Deploy fluentbit
+```bash
+kubectl apply -f services/aggregates/fluent-bit-daemonset.yaml
+kubectl -n aggregates rollout restart ds/fluent-bit
+kubectl logs -f -n aggregates -l app=fluent-bit 
+```
+
+
+# Shush Devops step will run  the clientaggregates_onboard.sh  to generate client config on shush side.
+PreRequest:
+cleint Name
+```bash
+./clientaggregates_onboard.sh
+
+Output:
+install-{clientname}.yaml
+```
+
+# (Ignore this If you are not building the Image)docker build and push Aggregates image to Artifactory Registry:
+```bash
+sudo docker buildx build \
+  --platform linux/amd64 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.15 \
+  --push .
+```
+
+
+# Deploy Aggregates
+```bash
+kubectl apply -f services/aggregates/install-elangotest.yaml
+```
+
+
+##check for pod status:
+```bash
+ kubectl get pods -n aggregates
+ ```
+
+
+## check for the aggregates:
+kubectl -n aggregates exec -it deploy/aggregator-testnov4 --   python -c "import json,urllib.request;print(json.dumps(json.load(urllib.request.urlopen('http://127.0.0.1:8080/debug/buffer')),indent=2))"
+
+## manually push aggregates to BigQuery
+kubectl -n aggregates run py --rm -it --restart=Never --image=python:3.11-alpine -- \
+  sh -lc 'python - <<PY
+import json,urllib.request
+req=urllib.request.Request("http://log-sink-svc:8080/trigger_aggregation",method="POST")
+with urllib.request.urlopen(req) as r:
+    print(json.dumps(json.loads(r.read().decode()), indent=2))
+PY'
+
+
+or 
+
+creates a job:
+kubectl create job --from=cronjob/bq-aggregator-trigger-aggregator-testnov4 manual-trigger-$(date +%s) -n aggregates
+
+
 
 # TOOLS:
 1. Kong runtime log:

@@ -160,18 +160,33 @@ def get_consumer_details_from_kong(client_id: str) -> Tuple[str, str] | None:
         oauth_resp.raise_for_status()
 
         oauth_data = oauth_resp.json()
-        if not (oauth_data.get("data") and len(oauth_data["data"]) > 0):
+        all_credentials = oauth_data.get("data")
+
+        if not all_credentials: # <-- CHANGED: Check if the 'data' list exists and is not empty
             log.warning(f"No OAuth2 credential found for client_id: {client_id}")
             return None
 
-        credential = oauth_data["data"][0]
+        # <-- ADDED: Find the credential with the exact matching client_id
+        credential = None
+        for cred in all_credentials:
+            if cred.get("client_id") == client_id:
+                credential = cred
+                break  # Found the exact match, stop searching
+
+        if not credential:
+            log.warning(f"API returned credentials, but none had an exact match for client_id: {client_id}")
+            return None
+        # <-- END ADDED SECTION
+
+        app_name = credential.get("name", "N/A") # <-- ADDED: Get the application name
         client_secret = credential.get("client_secret")
         consumer_id = credential.get("consumer", {}).get("id")
 
         if not client_secret or not consumer_id:
-            log.error(f"Incomplete OAuth2 credential data for client_id: {client_id}")
+            log.error(f"Incomplete OAuth2 credential data for client_id: {client_id} (app_name: {app_name})")
             return None
 
+        log.info(f"Found OAuth2 app '{app_name}' for client_id={client_id}") # <-- ADDED: Improved logging
         log.debug(f"Obtained client_secret={_redact(client_secret)} consumer_id={consumer_id}")
 
         # Second call to get consumer username from its ID
