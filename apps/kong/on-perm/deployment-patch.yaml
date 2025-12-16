@@ -19,7 +19,6 @@ spec:
               value: "on"
             - name: KONG_UNTRUSTED_LUA_SANDBOX_REQUIRES
               value: "kong.http.client"
-
             # === Log File Settings ===
             - name: KONG_PROXY_ACCESS_LOG
               value: "/tmp/kong_requests.log"
@@ -27,3 +26,4 @@ spec:
               value: "off"
             - name: KONG_ERROR_LOG
               value: "/tmp/kong_error.log"
+
