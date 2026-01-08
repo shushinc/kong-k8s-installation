@@ -19,6 +19,10 @@ data:
   CLIENT_PRICING_CACHE_TTL: "300"
   REDIS_HOST: "ts43-redis.kong.svc.cluster.local"
   REDIS_PORT: "6379"
+  DRUPAL_ANALYTICS_URL: "http://34.171.237.201/analytics/node/add"
+  DRUPAL_BASIC_USER: "admin"
+  DRUPAL_BASIC_PASS: "pass"
+  DRUPAL_TIMEOUT_SECONDS: "10"
 
 ---
 # Auto-generated for client: testnov4
@@ -48,7 +52,7 @@ spec:
       serviceAccountName: aggregator-sa-testnov4
       containers:
       - name: aggregator
-        image: "us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.15"
+        image: "us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.16"
         ports:
         - containerPort: 8080
         envFrom:

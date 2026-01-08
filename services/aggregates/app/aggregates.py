@@ -9,6 +9,7 @@ import io
 import re
 import time  
 import requests
+from requests.auth import HTTPBasicAuth
 import redis
 
 from flask import Flask, request, jsonify
@@ -35,6 +36,12 @@ KONG_ADMIN_TOKEN = os.getenv("KONG_ADMIN_TOKEN")  # rightnow, kong admin endpoin
 DEFAULT_PRICING_TYPE = (os.getenv("DEFAULT_PRICING_TYPE") or "international").strip().lower()
 CLIENT_PRICING_CACHE_TTL = int(os.getenv("CLIENT_PRICING_CACHE_TTL", "300"))  # seconds
 
+# === Drupal analytics push (optional) ===
+DRUPAL_ANALYTICS_URL = (os.getenv("DRUPAL_ANALYTICS_URL") or "").strip()
+DRUPAL_BASIC_USER = (os.getenv("DRUPAL_BASIC_USER") or "").strip()
+DRUPAL_BASIC_PASS = (os.getenv("DRUPAL_BASIC_PASS") or "").strip()
+DRUPAL_TIMEOUT_SECONDS = float(os.getenv("DRUPAL_TIMEOUT_SECONDS", "10"))
+
 # redis config
 REDIS_HOST = os.getenv("REDIS_HOST", "ts43-redis.kong.svc.cluster.local")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
@@ -58,7 +65,39 @@ _client_type_lock = threading.Lock()
 
 # flask app
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+# ---- logging / debug mode ----
+_LOG_LEVEL_RAW = (os.getenv("LOG_LEVEL") or "INFO").strip().upper()
+_DEBUG_RAW = (os.getenv("DEBUG") or "").strip().lower()
+if _DEBUG_RAW in ("1", "true", "yes", "y", "on"):
+    _LOG_LEVEL_RAW = "DEBUG"
+
+LOG_LEVEL = getattr(logging, _LOG_LEVEL_RAW, logging.INFO)
+logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s [%(levelname)s] %(message)s")
+
+# ---- logging setup (REQUIRED) ----
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s %(levelname)s %(message)s"
+)
+
+logger = logging.getLogger(__name__)
+
+def _debug_json(label: str, obj, max_chars: int = 20000):
+    # Only log when logger is in DEBUG level
+    if not logging.getLogger().isEnabledFor(logging.DEBUG):
+        return
+
+    try:
+        import json
+        s = json.dumps(obj, indent=2, default=str)
+        if len(s) > max_chars:
+            s = s[:max_chars] + "\n...<truncated>..."
+        logging.debug("%s:\n%s", label, s)
+    except Exception as e:
+        logging.exception("Debug JSON failed for %s: %s", label, e)
+
 
 #- in-memry store---
 _aggr = defaultdict(lambda: {
@@ -475,6 +514,120 @@ def _get_bq_client():
         return None
 
 
+
+def _collapse_rows_for_drupal(rows: list[dict]) -> list[dict]:
+    """
+    The BigQuery rows emitted by /trigger_aggregation are *segment-based*
+    (one row per transaction_type). Drupal expects one row per hour bucket.
+
+    So we collapse rows by (datatime, carrier_name, client, customer_name, endpoint, pricing_type),
+    summing est_revenue across segments and keeping the already-computed totals/avg latencies.
+    """
+    grouped: dict[tuple, dict] = {}
+    for r in rows or []:
+        key = (
+            str(r.get("datatime") or "").strip(),
+            str(r.get("carrier_name") or "").strip(),
+            str(r.get("client") or "").strip(),
+            str(r.get("customer_name") or "").strip(),
+            str(r.get("endpoint") or r.get("api_path") or "").strip(),
+            str(r.get("pricing_type") or "").strip(),
+        )
+        if key not in grouped:
+            grouped[key] = dict(r)
+            # start revenue sum at 0 and re-add below to be safe
+            grouped[key]["est_revenue"] = 0.0
+        grouped[key]["est_revenue"] = float(grouped[key].get("est_revenue") or 0.0) + float(r.get("est_revenue") or 0.0)
+    # normalize rounding like your code
+    for k in list(grouped.keys()):
+        grouped[k]["est_revenue"] = round(float(grouped[k].get("est_revenue") or 0.0), 6)
+    return list(grouped.values())
+
+
+def _to_drupal_payload(rows: list[dict]) -> list[dict]:
+    """
+    Convert (collapsed) BigQuery rows -> Drupal /analytics/node/add payload.
+    """
+    out: list[dict] = []
+    for r in rows or []:
+        dt = str(r.get("datatime") or "").strip()
+        api_path = str(r.get("endpoint") or r.get("api_path") or "/unknown").strip()
+        attribute = api_path.rstrip("/").split("/")[-1] if api_path else "unknown"
+
+        total_full = int(r.get("total_full_rate_billable_transaction") or 0)
+        total_low = int(r.get("total_lower_rate_billable_transaction") or 0)
+        total_no = int(r.get("total_no_billable_transaction") or 0)
+
+        # Stable analytical_id: <client>_<YYYY-MM-DD-HH>_<attribute>
+        hour_part = dt.replace(":", "-").replace(" ", "-")
+        analytical_id = f"{(r.get('client') or 'unknown')}_{hour_part}_{attribute}".replace("/", "_")
+
+        out.append({
+            "carrier_name": r.get("carrier_name") or "Unknown",
+            "client": r.get("client") or "Unknown",
+            "attribute": r.get("attribute") or "Unknown",
+            "customer_name": r.get("customer_name") or "Unknown",
+            "api_path": api_path,
+            "analytical_id": analytical_id,
+            # Drupal expects "YYYY-MM-DD HH:00:00"
+            "timestamp_interval": dt.replace("T", " "),
+            # [full_rate, lower_rate, no_billable]
+            "status_counts": [total_full, total_low, total_no],
+            "avg_latency_full_rate": float(r.get("avg_latency_full_rate") or 0.0),
+            "avg_latency_lower_rate": float(r.get("avg_latency_lower_rate") or 0.0),
+            "avg_latency_no_billable": float(r.get("avg_latency_no_billable") or 0.0),
+            "total_full_rate_billable_transaction": total_full,
+            "total_lower_rate_billable_transaction": total_low,
+            "total_no_billable_transaction": total_no,
+            "est_revenue": float(r.get("est_revenue") or 0.0),
+        })
+    return out
+
+
+def send_rows_to_drupal(rows: list[dict]) -> tuple[bool, str]:
+    # Always return (ok, msg) so callers can unpack safely.
+    if not rows:
+        return True, "No rows to send to Drupal"
+
+    if not DRUPAL_ANALYTICS_URL:
+        msg = "DRUPAL_ANALYTICS_URL not set; skipping Drupal push"
+        logging.info(msg)
+        return False, msg
+
+    if not DRUPAL_BASIC_USER or not DRUPAL_BASIC_PASS:
+        msg = "DRUPAL_BASIC_USER/DRUPAL_BASIC_PASS not set; skipping Drupal push"
+        logging.info(msg)
+        return False, msg
+
+    payload = _to_drupal_payload(rows)
+
+    try:
+        logging.info("Preparing to send %d analytics rows to Drupal", len(payload))
+        logging.info("FULL DRUPAL PAYLOAD: %s", json.dumps(payload, indent=2))
+        resp = requests.post(
+            DRUPAL_ANALYTICS_URL,
+            json=payload,
+            auth=HTTPBasicAuth(DRUPAL_BASIC_USER, DRUPAL_BASIC_PASS),
+            timeout=DRUPAL_TIMEOUT_SECONDS,
+        )
+
+        if 200 <= resp.status_code < 300:
+            msg = f"Drupal push OK: status={resp.status_code} rows={len(payload)}"
+            logging.info(msg)
+            return True, msg
+
+        # Non-2xx is a failure; include small body preview for debugging
+        body_preview = (resp.text or "")[:1000]
+        msg = f"Drupal push FAILED: status={resp.status_code} body={body_preview!r}"
+        logging.warning(msg)
+        return False, msg
+
+    except Exception as e:
+        logging.exception("Drupal push exception")
+        return False, f"Drupal push exception: {e}"
+
+
+
 def _update_k8s_configmap(csv_text: str) -> None:
     """
     Update the pricing ConfigMap so new pricing survives pod restarts.
@@ -689,11 +842,28 @@ def debug_buffer():
 
 @app.route("/trigger_aggregation", methods=["POST"])
 def trigger_aggregation():
+    logging.info("trigger_aggregation called")
+    if logging.getLogger().isEnabledFor(logging.DEBUG):
+        try:
+            # show basic runtime config in debug
+            logging.debug("BQ_PROJECT_ID=%s BQ_DATASET=%s BQ_TABLE=%s", BQ_PROJECT_ID, BQ_DATASET, BQ_TABLE)
+            logging.debug("DRUPAL_ANALYTICS_URL=%s", DRUPAL_ANALYTICS_URL)
+        except Exception:
+            pass
 
-    with _lock:
-        # snapshot current state and then clear so we don't double-insert
-        snapshot = dict(_aggr)
+        with _lock:
+            # snapshot current state and then clear so we don't double-insert
+                snapshot = dict(_aggr)
         _aggr.clear()
+
+    logging.info("Aggregation snapshot: groups=%d", len(snapshot))
+    if logging.getLogger().isEnabledFor(logging.DEBUG):
+        # show first few keys to sanity check grouping
+        try:
+            logging.debug("Snapshot sample keys: %s", list(snapshot.keys())[:5])
+        except Exception:
+            pass
+
 
     rows = []
     for key, v in snapshot.items():
@@ -778,19 +948,33 @@ def trigger_aggregation():
     # Insert into BigQuery if configured; otherwise return what would be inserted.
     client_bq = _get_bq_client()
     if client_bq is None:
-        # If BQ is not configured, just return the rows to inspect them.
-        return jsonify({"rows": rows}), 200
+        # If BQ is not configured, still try pushing to Drupal (optional), then return rows to inspect.
+        drupal_ok, drupal_msg = send_rows_to_drupal(rows)
+        return jsonify({"rows": rows, "drupal_ok": drupal_ok, "drupal_msg": drupal_msg}), 200
 
     if not rows:
         return jsonify({"inserted": 0}), 200
 
     table_id = f"{BQ_PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}"
     try:
+        _debug_json("BigQuery rows (about to insert)", rows)
+        logging.info("BigQuery insert: table=%s rows=%d", table_id, len(rows))
         errors = client_bq.insert_rows_json(table_id, rows)
+
         if errors:
             logging.error(f"BigQuery insert errors: {errors}")
             return jsonify({"inserted": 0, "errors": errors}), 500
-        return jsonify({"inserted": len(rows)}), 200
+
+        # Push the same aggregated hour-bucket values to Drupal (optional)
+        _debug_json("Drupal rows (about to send)", rows)
+
+        drupal_ok, drupal_msg = send_rows_to_drupal(rows)
+        if not drupal_ok:
+            logging.warning(drupal_msg)
+        else:
+            logging.info(drupal_msg)
+
+        return jsonify({"inserted": len(rows), "drupal_ok": drupal_ok, "drupal_msg": drupal_msg}), 200
     except Exception as e:
         logging.error(f"BigQuery insertion failed: {e}")
         return jsonify({"inserted": 0, "error": str(e)}), 500
