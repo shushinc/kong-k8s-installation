@@ -11,6 +11,7 @@ import time
 import requests
 from requests.auth import HTTPBasicAuth
 import redis
+from datetime import datetime
 
 from flask import Flask, request, jsonify
 
@@ -173,20 +174,15 @@ def _load_pricing_locked() -> None:
                 if not endpoint:
                     continue
 
-                # Normalize endpoint (strip query parameters, trailing slash)
-                key = endpoint.split("?", 1)[0].rstrip("/") or "/"
-
-                available = (str(row.get("Available") or "").strip().upper() == "TRUE")
-                enabled = (str(row.get("Enabled") or "").strip().upper() == "TRUE")
-                if not (available and enabled):
-                    continue
+                # Normalize endpoint key (strip trailing slash)
+                endpoint_key = endpoint.rstrip("/")
 
                 # Try to read separate domestic / international prices if present
                 intl_raw = (
                     row.get("InternationalPrice")
                     or row.get("International Price")
                     or row.get("internationalprice")
-                    or row.get("Price")  
+                    or row.get("Price")
                     or ""
                 )
                 dom_raw = (
@@ -198,33 +194,37 @@ def _load_pricing_locked() -> None:
                 intl_price = _safe_float(intl_raw)
                 dom_price = _safe_float(dom_raw)
 
-                # here markup is treated as optional; if missing/invalid then its  0%
+                # Markup %
                 markup_raw = (
                     row.get("Markup")
                     or row.get("Markup%")
                     or row.get("Markup Percent")
                     or row.get("Markup_Percent")
-                    or row.get("MarkupPercentage")      
-                    or row.get("Markup Percentage")     
+                    or row.get("MarkupPercentage")
+                    or row.get("Markup Percentage")
                     or ""
                 )
                 markup_percent = _safe_float(markup_raw) or 0.0
 
+                # Human-friendly attribute/name from pricing CSV
+                api_attr = (
+                    row.get("API") 
+                    or row.get("APIAttributesName")
+                    or row.get("API Attribute")
+                    or row.get("APIAttributes")       
+                    or row.get("Attribute")
+                    or ""
+                )
+                api_attr = str(api_attr).strip() if api_attr is not None else ""
+
                 if intl_price is None and dom_price is None:
-                    # As a final fallback, if there is a generic Price column, use that.
-                    generic = _safe_float(row.get("Price"))
-                    if generic is not None:
-                        table[key] = {
-                            "international": generic,
-                            "domestic": generic,
-                            "markup": markup_percent,
-                        }
                     continue
 
-                table[key] = {
+                table[endpoint_key] = {
                     "international": intl_price,
                     "domestic": dom_price,
                     "markup": markup_percent,
+                    "api_attribute": api_attr,   # <-- NEW
                 }
 
         _pricing_table = table
@@ -239,6 +239,21 @@ def _load_pricing_locked() -> None:
         _pricing_table = {}
         _pricing_loaded = True
 
+def _api_attribute_for_endpoint(endpoint: str | None) -> str | None:
+    if not endpoint:
+        return None
+
+    # Lazy-load pricing if needed (same approach as _price_for_endpoint)
+    if not _pricing_loaded:
+        with _pricing_lock:
+            if not _pricing_loaded:
+                _load_pricing_locked()
+
+    key = str(endpoint).strip().split("?", 1)[0].rstrip("/") or "/"
+    row = (_pricing_table or {}).get(key) or {}
+    val = row.get("api_attribute") or ""
+    val = str(val).strip() if val is not None else ""
+    return val or None
         
 def _price_for_endpoint(endpoint: str | None, pricing_type: str | None = None) -> float:
     """
@@ -545,33 +560,38 @@ def _collapse_rows_for_drupal(rows: list[dict]) -> list[dict]:
 
 
 def _to_drupal_payload(rows: list[dict]) -> list[dict]:
-    """
-    Convert (collapsed) BigQuery rows -> Drupal /analytics/node/add payload.
-    """
     out: list[dict] = []
     for r in rows or []:
         dt = str(r.get("datatime") or "").strip()
         api_path = str(r.get("endpoint") or r.get("api_path") or "/unknown").strip()
-        attribute = api_path.rstrip("/").split("/")[-1] if api_path else "unknown"
+
+        # slug (only as fallback)
+        attribute_slug = api_path.rstrip("/").split("/")[-1] if api_path else "unknown"
+
+        # WHAT YOU WANT: APIAttributes from pricing.csv for this endpoint
+        attribute_from_pricing = _api_attribute_for_endpoint(api_path)
+
+        # Final attribute value sent to moriarty
+        attribute_value = attribute_from_pricing or "Unknown"
+
+        # Analytical id can still use slug (stable + short)
+        hour_part = dt.replace(":", "-").replace(" ", "-")
+        analytical_id = f"{(r.get('client') or 'unknown')}_{hour_part}_{attribute_slug}".replace("/", "_")
 
         total_full = int(r.get("total_full_rate_billable_transaction") or 0)
         total_low = int(r.get("total_lower_rate_billable_transaction") or 0)
         total_no = int(r.get("total_no_billable_transaction") or 0)
 
-        # Stable analytical_id: <client>_<YYYY-MM-DD-HH>_<attribute>
-        hour_part = dt.replace(":", "-").replace(" ", "-")
-        analytical_id = f"{(r.get('client') or 'unknown')}_{hour_part}_{attribute}".replace("/", "_")
-
+        formatted_ts = dt.replace("T", " ").replace("Z", "")
+        
         out.append({
             "carrier_name": r.get("carrier_name") or "Unknown",
             "client": r.get("client") or "Unknown",
-            "attribute": r.get("attribute") or "Unknown",
+            "attribute": attribute_value,  
             "customer_name": r.get("customer_name") or "Unknown",
             "api_path": api_path,
             "analytical_id": analytical_id,
-            # Drupal expects "YYYY-MM-DD HH:00:00"
-            "timestamp_interval": dt.replace("T", " "),
-            # [full_rate, lower_rate, no_billable]
+            "timestamp_interval": formatted_ts,
             "status_counts": [total_full, total_low, total_no],
             "avg_latency_full_rate": float(r.get("avg_latency_full_rate") or 0.0),
             "avg_latency_lower_rate": float(r.get("avg_latency_lower_rate") or 0.0),
@@ -581,6 +601,7 @@ def _to_drupal_payload(rows: list[dict]) -> list[dict]:
             "total_no_billable_transaction": total_no,
             "est_revenue": float(r.get("est_revenue") or 0.0),
         })
+
     return out
 
 
@@ -781,7 +802,8 @@ def debug_buffer():
 
             # unit price for each endpoint (per successful transaction)
             unit_price = _price_for_endpoint(api_path, pricing_type)
-
+            attribute_from_pricing = _api_attribute_for_endpoint(api_path)
+            attribute_value = attribute_from_pricing or "Unknown"
              # client_type + markup
             client_type = _get_client_type(client)          # 'enterprise' or 'demandpartner'
             markup_percent = _markup_for_endpoint(api_path) # e.g. 20 for 20%
@@ -819,6 +841,7 @@ def debug_buffer():
                     "datatime": hour_iso,
                     "client": client,
                     "api_path": api_path,
+                    "attribute": attribute_value,
                     "carrier_name": final_carrier_name,
                     "customer_name": customer_name,
 
@@ -885,7 +908,7 @@ def trigger_aggregation():
         client_type = _get_client_type(client)          # 'enterprise' or 'demandpartner'
         markup_percent = _markup_for_endpoint(api_path) # e.g. 20 for 20%
 
-
+        
         # per-status avg latencies
         avg_200 = (v["200"]["latency_sum"] / total_200) if total_200 else 0.0
         avg_404 = (v["404"]["latency_sum"] / total_404) if total_404 else 0.0
@@ -897,7 +920,12 @@ def trigger_aggregation():
             ("Unsuccessful Transactions", total_404, avg_404),
             ("Other", total_other, avg_other),
         ]
-
+        attribute_from_pricing = _api_attribute_for_endpoint(api_path)
+        attribute_value = attribute_from_pricing or "Unknown"
+        if attribute_value == "Unknown":
+            logging.debug("Skipping BQ export for endpoint %s: Attribute is Unknown", api_path)
+            continue
+        
         for tx_type, tx_count, tx_avg in segments:
             if tx_count <= 0:
                 continue
@@ -925,7 +953,7 @@ def trigger_aggregation():
                 "client": client,
                 "customer_name": customer_name,
                 "endpoint": api_path,
-
+                "attribute": attribute_value,
                 # row segment
                 "transaction_type": tx_type,
                 "transaction_type_count": tx_count,
