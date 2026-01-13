@@ -871,12 +871,12 @@ def trigger_aggregation():
             # show basic runtime config in debug
             logging.debug("BQ_PROJECT_ID=%s BQ_DATASET=%s BQ_TABLE=%s", BQ_PROJECT_ID, BQ_DATASET, BQ_TABLE)
             logging.debug("DRUPAL_ANALYTICS_URL=%s", DRUPAL_ANALYTICS_URL)
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug("Debug logging skipped: %s", e)
 
-        with _lock:
-            # snapshot current state and then clear so we don't double-insert
-                snapshot = dict(_aggr)
+    with _lock:
+        # snapshot current state and then clear so we don't double-insert
+        snapshot = dict(_aggr)
         _aggr.clear()
 
     logging.info("Aggregation snapshot: groups=%d", len(snapshot))
@@ -1010,11 +1010,18 @@ def trigger_aggregation():
 @app.route("/upload_pricing", methods=["POST"])
 def upload_pricing():
     """
-    Upload a new pricing.csv, reload it in memory, and push it to BigQuery
+    Accept pricing.csv send by moriarty:
+      - multipart/form-data with file field named 'file'
+      - OR JSON body: {"csv": "<csv text>"}
+
+    Then:
+      1) rebuild in-memory _pricing_table in the same shape as _load_pricing_locked()
+      2) mark pricing loaded
+      3) persist to K8s ConfigMap via _update_k8s_configmap(csv_text)
     """
     global _pricing_loaded, _pricing_table
 
-    # 1) Get CSV text from multipart or JSON
+    # ---------- 1) Read CSV text ----------
     csv_text = None
 
     # multipart/form-data
@@ -1023,123 +1030,125 @@ def upload_pricing():
         data = uploaded_file.read()
         if not data:
             return jsonify({"error": "uploaded file is empty"}), 400
-        try:
-            csv_text = data.decode("utf-8")
-        except UnicodeDecodeError:
-            csv_text = data.decode("latin-1")
+        csv_text = data.decode("utf-8", errors="replace")
 
-    # JSON { "csv": "..." }
-    if csv_text is None:
+    # application/json
+    if not csv_text:
         payload = request.get_json(silent=True) or {}
         csv_text = payload.get("csv")
         if not csv_text:
             return jsonify({
-                "error": "no pricing data provided; upload as multipart 'file' or JSON field 'csv'"
+                "error": "No CSV found. Send multipart file field 'file' or JSON {'csv': '...'}"
             }), 400
 
-    # 2) Parse CSV and rebuild in-memory pricing table (no file write needed)
-    table = {}
-    reader = csv.DictReader(io.StringIO(csv_text))
-
-    for row in reader:
-        endpoint = (row.get("Endpoint") or "").strip()
-
-        # Prefer "International Price" but allow older "Price" column
-        price_str = (
-            (row.get("International Price") or row.get("InternationalPrice") or row.get("internationalprice") or row.get("Price"))
-            or ""
-        ).strip()
-
-        available = (row.get("Available") or "").strip().upper() == "TRUE"
-        enabled = (row.get("Enabled") or "").strip().upper() == "TRUE"
-
-        # Skip rows without endpoint or price, or not available/enabled
-        if not endpoint or not price_str or not (available and enabled):
-            continue
-
+    def _safe_float(x):
         try:
-            price = float(price_str)
+            s = ("" if x is None else str(x)).strip()
+            return float(s) if s != "" else None
         except Exception:
-            logging.warning(f"Invalid price '{price_str}' for endpoint '{endpoint}', skipping")
-            continue
+            return None
 
-        table[endpoint] = {
-            "price": price,
-            "available": available,
-            "enabled": enabled,
-        }
+    # ---------- 2) Parse CSV and rebuild pricing table (correct structure) ----------
+    table = {}
+    rows_in_memory = 0
+    skipped_no_endpoint = 0
+    skipped_not_enabled = 0
+    skipped_no_price = 0
 
-    with _pricing_lock:
+    try:
+        import csv as _csv
+        import io as _io
+
+        reader = _csv.DictReader(_io.StringIO(csv_text))
+        if not reader.fieldnames:
+            return jsonify({"error": "CSV has no header row"}), 400
+
+        for row in reader:
+            # Availability/enabled flags (keep consistent with your file)
+            available = str(row.get("Available", "")).strip().upper()
+            enabled = str(row.get("Enabled", "")).strip().upper()
+
+            # Only load enabled rows
+            if available not in ("TRUE", "YES", "1") or enabled not in ("TRUE", "YES", "1"):
+                skipped_not_enabled += 1
+                continue
+
+            endpoint = (row.get("Endpoint") or row.get("endpoint") or "").strip()
+            if not endpoint:
+                # bundle rows with empty Endpoint are ignored for endpoint lookups
+                skipped_no_endpoint += 1
+                continue
+
+            # Normalize endpoint key (match your lookup logic)
+            endpoint_key = endpoint.split("?", 1)[0].rstrip("/") or "/"
+
+            intl_price = _safe_float(row.get("InternationalPrice") or row.get("International Price"))
+            dom_price = _safe_float(row.get("DomesticPrice") or row.get("Domestic Price"))
+
+            if intl_price is None and dom_price is None:
+                skipped_no_price += 1
+                continue
+
+            markup_raw = (
+                row.get("MarkupPercentage")
+                or row.get("Markup Percentage")
+                or row.get("Markup%")
+                or row.get("Markup")
+                or 0
+            )
+            markup_percent = _safe_float(markup_raw) or 0.0
+
+            # Your "attribute" value comes from the CSV "API" column
+            api_attr = (
+                row.get("API")
+                or row.get("Api")
+                or row.get("api")
+                or row.get("API Attribute")
+                or row.get("Attribute")
+                or ""
+            )
+            api_attr = str(api_attr).strip() if api_attr is not None else ""
+
+            #same STRUCTURE 
+            table[endpoint_key] = {
+                "international": intl_price,
+                "domestic": dom_price,
+                "markup": markup_percent,
+                "api_attribute": api_attr,
+            }
+            rows_in_memory += 1
+
+    except Exception as e:
+        logging.exception("Failed to parse pricing CSV")
+        return jsonify({"error": f"Failed to parse CSV: {e}"}), 400
+
+    # ---------- 3) Swap pricing table atomically ----------
+    with _lock:
         _pricing_table = table
         _pricing_loaded = True
-        rows_in_memory = len(_pricing_table)
 
-    logging.info("Loaded %d pricing rows from upload_pricing", rows_in_memory)
+    logging.info(
+        "upload_pricing: loaded=%d skipped_not_enabled=%d skipped_no_endpoint=%d skipped_no_price=%d",
+        rows_in_memory, skipped_not_enabled, skipped_no_endpoint, skipped_no_price
+    )
 
-    # 3) Push CSV to BigQuery into pricing_YYYYMMDD (with sanitized column names)
-    client_bq = _get_bq_client()
-    bq_result = {"uploaded": False}
-
-    if client_bq:
-        try:
-            from google.cloud import bigquery as bq_module
-
-            # Re-read CSV and write out a cleaned version with BQ-safe headers
-            input_buf = io.StringIO(csv_text)
-            reader = csv.DictReader(input_buf)
-
-            orig_fieldnames = reader.fieldnames or []
-            sanitized_fieldnames = [_sanitize_bq_field(fn) for fn in orig_fieldnames]
-
-
-            out_buf = io.StringIO()
-            writer = csv.DictWriter(out_buf, fieldnames=sanitized_fieldnames)
-            writer.writeheader()
-
-            for row in reader:
-                out_row = {}
-                for orig, san in zip(orig_fieldnames, sanitized_fieldnames):
-                    out_row[san] = row.get(orig)
-                writer.writerow(out_row)
-
-            cleaned_csv = out_buf.getvalue()
-
-            now_str = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            table_name = f"pricing_{now_str}"
-            table_id = f"{BQ_PROJECT_ID}.{BQ_DATASET}.{table_name}"      
-
-            job_config = bq_module.LoadJobConfig(
-                source_format=bq_module.SourceFormat.CSV,
-                skip_leading_rows=1,
-                autodetect=True,
-                write_disposition=bq_module.WriteDisposition.WRITE_TRUNCATE,
-            )
-
-            load_job = client_bq.load_table_from_file(
-                io.StringIO(cleaned_csv),
-                table_id,
-                job_config=job_config,
-            )
-            load_job.result()  # wait for completion
-
-            dest_table = client_bq.get_table(table_id)
-            bq_result = {
-                "uploaded": True,
-                "table": table_name,
-                "row_count": dest_table.num_rows,
-            }
-        except Exception as e:
-            logging.error("Failed to load pricing CSV into BigQuery: %s", e)
-            bq_result = {"uploaded": False, "error": str(e)}
-
-    # 4) Update Kubernetes ConfigMap so the new pricing is persisted
-    _update_k8s_configmap(csv_text)
-
+    # ---------- 4) Persist to ConfigMap (your existing helper) ----------
+    try:
+        _update_k8s_configmap(csv_text)
+    except Exception as e:
+        logging.error("upload_pricing: ConfigMap update failed: %s", e)
+        # Still return ok for in-memory reload, but signal CM failure
+        return jsonify({
+            "status": "ok",
+            "pricing_rows_in_memory": rows_in_memory,
+            "configmap_updated": False,
+            "configmap_error": str(e),
+        }), 200
 
     return jsonify({
         "status": "ok",
         "pricing_rows_in_memory": rows_in_memory,
-        "bigquery": bq_result,
+        "configmap_updated": True,
     }), 200
 
 

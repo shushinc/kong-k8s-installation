@@ -101,7 +101,7 @@ AGGREGATOR_CONFIGMAP_NAME="aggregator-config-${CLIENT_NAME}"
 KEY_FILE_PATH="./gcp/key.json"
 
 # Image
-IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.16.1"
+IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.16.30"
 
 echo ""
 echo "--------------------------------------------------"
@@ -143,7 +143,7 @@ fi
 # --- 6. Create the BigQuery Table ---
 echo -e "\n[STEP 2/7] Creating BigQuery table: ${BQ_DATASET_ID}.${BQ_TABLE_ID}..."
 
-SCHEMA="datatime:TIMESTAMP,carrier_name:STRING,client:STRING,customer_name:STRING,endpoint:STRING,pricing_type:STRING,transaction_type:STRING,transaction_type_count:INT64,total_full_rate_billable_transaction:INT64,total_lower_rate_billable_transaction:INT64,total_no_billable_transaction:INT64,avg_latency_full_rate:FLOAT64,avg_latency_lower_rate:FLOAT64,avg_latency_no_billable:FLOAT64,est_revenue:FLOAT64"
+SCHEMA="datatime:TIMESTAMP,carrier_name:STRING,client:STRING,customer_name:STRING,endpoint:STRING,attribute:STRING,pricing_type:STRING,transaction_type:STRING,transaction_type_count:INT64,total_full_rate_billable_transaction:INT64,total_lower_rate_billable_transaction:INT64,total_no_billable_transaction:INT64,avg_latency_full_rate:FLOAT64,avg_latency_lower_rate:FLOAT64,avg_latency_no_billable:FLOAT64,est_revenue:FLOAT64"
 
 if bq mk --table --description="Aggregated Kong analytics data" "${GCP_PROJECT_ID}:${BQ_DATASET_ID}.${BQ_TABLE_ID}" ${SCHEMA}; then
   echo "Table created successfully."
