@@ -5,13 +5,13 @@ import time
 import base64
 import json
 from logging.handlers import RotatingFileHandler
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, urlencode
 from typing import Dict, Any, Tuple, Optional
 
 import requests
 import redis
-from fastapi import FastAPI, Response, Form, HTTPException, Header, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Response, Form, HTTPException, Header, Request, Query
+from fastapi.responses import JSONResponse, RedirectResponse
 
 # =========================
 # Logging configuration
@@ -153,7 +153,7 @@ def get_consumer_details_from_kong(client_id: str) -> Tuple[str, str] | None:
 
     try:
         t0 = time.perf_counter()
-        log.info(f"Querying Kong Admin API for OAuth2 credential (client_id={client_id}).")
+        log.debug(f"Querying Kong Admin API for OAuth2 credential (client_id={client_id}).")
         log.debug(f"GET {oauth2_url} params={params}")
         oauth_resp = requests.get(oauth2_url, params=params, timeout=REQ_TIMEOUT, verify=VERIFY_TLS)
         log.debug(f"Kong oauth2 lookup completed in {_duration_ms(t0)} ms with status={oauth_resp.status_code}")
@@ -162,11 +162,11 @@ def get_consumer_details_from_kong(client_id: str) -> Tuple[str, str] | None:
         oauth_data = oauth_resp.json()
         all_credentials = oauth_data.get("data")
 
-        if not all_credentials: # <-- CHANGED: Check if the 'data' list exists and is not empty
+        if not all_credentials: 
             log.warning(f"No OAuth2 credential found for client_id: {client_id}")
             return None
 
-        # <-- ADDED: Find the credential with the exact matching client_id
+        # Find the credential with the exact matching client_id
         credential = None
         for cred in all_credentials:
             if cred.get("client_id") == client_id:
@@ -176,9 +176,8 @@ def get_consumer_details_from_kong(client_id: str) -> Tuple[str, str] | None:
         if not credential:
             log.warning(f"API returned credentials, but none had an exact match for client_id: {client_id}")
             return None
-        # <-- END ADDED SECTION
 
-        app_name = credential.get("name", "N/A") # <-- ADDED: Get the application name
+        app_name = credential.get("name", "N/A")
         client_secret = credential.get("client_secret")
         consumer_id = credential.get("consumer", {}).get("id")
 
@@ -186,7 +185,7 @@ def get_consumer_details_from_kong(client_id: str) -> Tuple[str, str] | None:
             log.error(f"Incomplete OAuth2 credential data for client_id: {client_id} (app_name: {app_name})")
             return None
 
-        log.info(f"Found OAuth2 app '{app_name}' for client_id={client_id}") # <-- ADDED: Improved logging
+        log.debug(f"Found OAuth2 app '{app_name}' for client_id={client_id}")
         log.debug(f"Obtained client_secret={_redact(client_secret)} consumer_id={consumer_id}")
 
         # Second call to get consumer username from its ID
@@ -204,29 +203,44 @@ def get_consumer_details_from_kong(client_id: str) -> Tuple[str, str] | None:
             log.error(f"Could not find username for consumer_id: {consumer_id}")
             return None
 
-        log.info(f"Resolved consumer_username={consumer_username} for client_id={client_id}")
+        log.debug(f"Resolved consumer_username={consumer_username} for client_id={client_id}")
         return client_secret, consumer_username
 
     except requests.RequestException as e:
         log.error(f"Error calling Kong Admin API: {e}")
         return None
 
-def store_auth_code(auth_code: str, msisdn: str, provision_key: str, client_id: str, client_secret: str, consumer_username: str) -> bool:
+def store_auth_code(
+    auth_code: str, 
+    msisdn: str, 
+    provision_key: Optional[str], 
+    client_id: str, 
+    client_secret: str, 
+    consumer_username: str,
+    api_version: str = "v1"  # New parameter to differentiate v1 and v2
+) -> bool:
     try:
         redis_client = get_redis_client()
         redis_key = f"auth_code:{auth_code}"
-        redis_value = json.dumps({
+        
+        # Prepare the value with version information
+        data_to_store = {
             "msisdn": msisdn,
-            "provision_key": provision_key,
+            "provision_key": provision_key if provision_key else "",
             "client_id": client_id,
             "client_secret": client_secret,
-            "consumer_username": consumer_username
-        })
+            "consumer_username": consumer_username,
+            "api_version": api_version
+        }
+        
+        redis_value = json.dumps(data_to_store)
+        
         log.debug(f"Redis SETEX key={redis_key} ttl={REDIS_TTL} value.redacted="
-                  f"{{'msisdn': '{msisdn}', 'provision_key': '***', 'client_id': '{client_id}', "
+                  f"{{'msisdn': '{msisdn}', 'api_version': '{api_version}', 'client_id': '{client_id}', "
                   f"'client_secret': '{_redact(client_secret)}', 'consumer_username': '{consumer_username}'}}")
+        
         redis_client.setex(redis_key, REDIS_TTL, redis_value)
-        log.info(f"Stored auth context in Redis for consumer={consumer_username}")
+        log.debug(f"Stored auth context ({api_version}) in Redis for consumer={consumer_username}")
         return True
     except redis.RedisError as e:
         log.error(f"Redis error while storing auth code: {e}")
@@ -250,13 +264,38 @@ def validate_and_get_data_from_code(auth_code: str) -> dict | None:
         log.error(f"Error validating code: {e}")
         return None
 
+def _extract_state_from_request_object(request_jwt: str) -> Optional[str]:
+    """
+    gsma  is sending state in request object,so Best-effort extraction of `state` from a JWT-style `request` object.
+    """
+    try:
+        parts = request_jwt.split(".")
+        if len(parts) != 3:
+            log.warning("request object is not a 3-part JWT; cannot extract state")
+            return None
+
+        payload_b64 = parts[1]
+        # Add padding if needed
+        padding = "=" * (-len(payload_b64) % 4)
+        payload_bytes = base64.urlsafe_b64decode(payload_b64 + padding)
+        payload = json.loads(payload_bytes.decode("utf-8"))
+
+        state_val = payload.get("state")
+        log.debug(f"Extracted state from request object: {state_val!r}")
+        return state_val
+    except Exception as e:
+        log.warning(f"Failed to extract state from request object: {e}")
+        return None
+
+
+
 # =========================
 # FastAPI App + Middleware
 # =========================
 app = FastAPI(
     title="Camera Authorizer Service",
     description="Securely orchestrates external authentication and token exchange.",
-    version="1.7.3"
+    version="1.8.0"
 )
 # Paths to skip in access logs (health/readiness/metrics)
 
@@ -264,7 +303,7 @@ SKIP_ACCESS_LOG_PATHS = {"/healthz"}
 
 @app.middleware("http")
 async def access_log_middleware(request: Request, call_next):
-    # Skip noisy endpoints lke healthcheck
+    # Skip noisy endpoints like healthcheck
     if request.url.path in SKIP_ACCESS_LOG_PATHS:
         return await call_next(request)
 
@@ -316,6 +355,188 @@ def healthz():
         log.error(f"Health check failed: {e}")
         raise HTTPException(status_code=503, detail=f"Service is unhealthy: {str(e)}")
 
+# V2 Authorization Endpoint (GET with Redirect)
+@app.get("/v2/authorize")
+def handle_authorization_v2(
+    request: Request,
+    response_type: str = Query(..., description="Must be 'code'"),
+    redirect_uri: str = Query(...),
+    client_id: str = Query(...),
+    scope: Optional[str] = Query(None),
+    request_jwt: Optional[str] = Query(None, alias="request"),
+    state: Optional[str] = Query(None),
+    prompt: str = Query("none"),
+    ipAddress: Optional[str] = Query(None),                
+    x_correlator: Optional[str] = Header(default=None, alias="x-correlator"),
+):
+    t0 = time.perf_counter()
+    
+    try:
+        raw_url = str(request.url)
+        method = request.method
+        client_host = request.client.host if request.client else "unknown"
+
+        # Convert headers to dict and sanitize
+        incoming_headers = dict(request.headers)
+        incoming_headers.pop("authorization", None)
+        incoming_headers.pop("cookie", None)
+
+        log.debug(f"Incoming /v2/authorize request:")
+        log.debug(f"Method: {method}")
+        log.debug(f"URL: {raw_url}")
+        log.debug(f"client IP: {client_host}")
+        log.debug(f"Query Params: {dict(request.query_params)}")
+        log.debug(f"Headers: {incoming_headers}")
+
+    except Exception as log_err:
+        log.warning(f"Failed to log incoming request: {log_err}")
+        
+    try:
+        # --- Resolve IP (prefer explicit ipAddress, then headers, then socket) ---
+        xff = request.headers.get("x-forwarded-for", "")
+        x_real = request.headers.get("x-real-ip", "")
+
+        if ipAddress:
+            resolved_ip = ipAddress
+        elif xff:
+            resolved_ip = xff.split(",")[0].strip()
+        elif x_real:
+            resolved_ip = x_real
+        elif request.client:
+            resolved_ip = request.client.host
+        else:
+            resolved_ip = None
+
+        ipAddress = resolved_ip
+
+        log.debug(
+            f"V2 Authorization request for client_id={client_id}, "
+            f"ipAddress={ipAddress}, response_type={response_type}"
+        )
+        log.debug(
+
+            f"Query scope={scope}, state={state}, prompt={prompt}, "
+            f"has_request_jwt={bool(request_jwt)}"
+
+        )
+
+        if response_type != "code":
+            raise HTTPException(status_code=400, detail="Unsupported response_type. Only 'code' is allowed.")
+
+        # adding basic   validation on redirect_uri 
+        parsed_redirect = urlparse(redirect_uri)
+        if not parsed_redirect.scheme or not parsed_redirect.netloc:
+            raise HTTPException(status_code=400, detail="Invalid redirect_uri")
+        
+        # --- External auth call ---
+        extra_headers = {"x-correlator": x_correlator} if x_correlator else {}
+        ext_headers = _build_outbound_forward_headers(request, extra_headers)
+
+        ext_params = {}
+        if ipAddress:
+            ext_params["ipAddress"] = ipAddress
+
+        log.debug(f"V2: Calling EXTERNAL_AUTH_URL={EXTERNAL_AUTH_URL}")
+        log.debug(f"V2 External auth params={ext_params} headers={ext_headers}")
+
+        t_ext = time.perf_counter()
+        external_resp = requests.get(
+            EXTERNAL_AUTH_URL,
+            params=ext_params if ext_params else None,
+            headers=ext_headers,
+            timeout=REQ_TIMEOUT,
+            verify=VERIFY_TLS,
+        )
+        log.debug(
+            f"External auth completed in {_duration_ms(t_ext)} ms "
+            f"status={external_resp.status_code}"
+        )
+
+        if external_resp.status_code != 200:
+            log.warning(
+                f"External auth failed [{external_resp.status_code}]: "
+                f"{external_resp.text[:512]}"
+            )
+            try:
+                error_detail = external_resp.json()
+            except requests.exceptions.JSONDecodeError:
+                error_detail = {"detail": external_resp.text or "Unknown error"}
+            raise HTTPException(
+                status_code=external_resp.status_code,
+                detail=error_detail.get("detail", error_detail),
+            )
+
+        try:
+            auth_json = external_resp.json()
+        except requests.exceptions.JSONDecodeError:
+            log.error("External auth returned non-JSON body")
+            raise HTTPException(status_code=502, detail="External auth invalid response")
+
+        msisdn_from_ext = auth_json.get("msisdn")
+        match = auth_json.get("match", False)
+
+        if not match:
+            log.debug(f"External auth not matched for ipAddress={ipAddress}: {auth_json}")
+            raise HTTPException(status_code=401, detail="Authentication not matched")
+
+        if not msisdn_from_ext or not isinstance(msisdn_from_ext, str):
+            log.error(f"External auth JSON missing/invalid msisdn: {auth_json}")
+            raise HTTPException(status_code=502, detail="External auth response missing msisdn")
+
+        log.debug(f"External authentication successful. msisdn={msisdn_from_ext}")
+
+        # --- Fetch client_secret + consumer_username from Kong Admin ---
+        consumer_details = get_consumer_details_from_kong(client_id)
+        if not consumer_details:
+            raise HTTPException(status_code=401, detail="Invalid client_id or client credentials not found.")
+        client_secret, consumer_username = consumer_details
+        log.debug(f"Using client_id={client_id} client_secret={_redact(client_secret)} consumer={consumer_username}")
+
+        # --- Generate and store auth code as V2 ---
+        custom_auth_code = generate_auth_code(msisdn_from_ext)
+
+        if not store_auth_code(
+            custom_auth_code,
+            msisdn_from_ext,
+            None,                  # 👈 no provision_key for v2
+            client_id,
+            client_secret,
+            consumer_username,
+            api_version="v2",
+        ):
+            raise HTTPException(status_code=500, detail="Failed to store auth code")
+
+        # --- Build redirect URL ---
+        effective_state = state
+        if not effective_state and request_jwt:
+            effective_state = _extract_state_from_request_object(request_jwt)
+        log.debug(
+            f"V2: received state={state!r}, "
+            f"derived state from request={_extract_state_from_request_object(request_jwt) if request_jwt else None!r}, "
+            f"using effective_state={effective_state!r}"
+        )
+        query_params = {"code": custom_auth_code}
+        if effective_state:
+            query_params["state"] = effective_state
+        separator = "&" if "?" in redirect_uri else "?"
+        final_redirect_uri = f"{redirect_uri}{separator}{urlencode(query_params)}"
+
+        log.debug(
+            f"V2: Issued auth code for consumer={consumer_username}. "
+            f"Redirecting to: {final_redirect_uri}"
+        )
+        log.debug(f"Total /v2/authorize duration: {_duration_ms(t0)} ms")
+
+        return RedirectResponse(url=final_redirect_uri, status_code=302)
+
+    except HTTPException:
+        log.debug(f"/v2/authorize failed after {_duration_ms(t0)} ms")
+        raise
+    except Exception:
+        log.exception("Unexpected error during v2 authorization")
+        raise HTTPException(status_code=500, detail="An internal server error occurred")
+
+# V1 Authorization Endpoint (POST)
 @app.post("/authorizer")
 def handle_authorization(
     request: Request,
@@ -402,14 +623,15 @@ def handle_authorization(
         # (3) Generate auth code using msisdn
         custom_auth_code = generate_auth_code(msisdn_from_ext)
 
-        # (4) Store context in Redis
+        # (4) Store context in Redis (Mark as V1)
         if not store_auth_code(
             custom_auth_code,
             msisdn_from_ext,
             provision_key,
             client_id,
             client_secret,
-            consumer_username
+            consumer_username,
+            api_version="v1"
         ):
             raise HTTPException(status_code=503, detail="Failed to store authorization context. Please try again later.")
 
