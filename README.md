@@ -287,7 +287,7 @@ install-{clientname}.yaml
 ```bash
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.15 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.16.2 \
   --push .
 ```
 

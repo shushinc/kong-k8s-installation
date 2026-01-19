@@ -1,4 +1,4 @@
-Available,Enabled,APIAttributes,Endpoint,InternationalPrice,DomesticPrice,EffectiveDate,Currency,MarkupPercentage,DiscountPercentage
+Available,Enabled,API,Endpoint,InternationalPrice,DomesticPrice,EffectiveDate,Currency,MarkupPercentage,DiscountPercentage
 TRUE,TRUE,Silent Authentication,/silent-authentication/v0/retrieve-ip-address,0.0026,0.0026,11/23/2025,USD,15,15
 TRUE,TRUE,Zero Trust,/silent-authentication/v0/verify-ip-address,0.0026,5.5555,11/23/2025,USD,15,15
 TRUE,TRUE,TS.43 Silent Authentication,/silent-authentication/v2/ts43-retrieve-phone-number,0.0026,2.0026,11/23/2025,USD,15,15

@@ -19,6 +19,10 @@ data:
   CLIENT_PRICING_CACHE_TTL: "300"
   REDIS_HOST: "ts43-redis.kong.svc.cluster.local"
   REDIS_PORT: "6379"
+  DRUPAL_ANALYTICS_URL: "http://34.171.237.201/analytics/node/add"
+  DRUPAL_BASIC_USER: "admin"
+  DRUPAL_BASIC_PASS: "pass"
+  DRUPAL_TIMEOUT_SECONDS: "10"
 
 ---
 # Auto-generated for client: testnov4
@@ -48,7 +52,7 @@ spec:
       serviceAccountName: aggregator-sa-testnov4
       containers:
       - name: aggregator
-        image: "us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.15"
+        image: "us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.16.30"
         ports:
         - containerPort: 8080
         envFrom:
@@ -165,7 +169,7 @@ apiVersion: v1
 data:
   pricing.csv: |+
     Available,Enabled,API,Endpoint,InternationalPrice,DomesticPrice,EffectiveDate,Currency,MarkupPercentage,DiscountPercentage
-    TRUE,TRUE,Silent Auth,/silent-authentication/v0/retrieve-ip-address,0.0026,0.0026,11/23/2025,USD,15,15
+    TRUE,TRUE,Silent Authentication,/silent-authentication/v0/retrieve-ip-address,200,200,11/23/2025,USD,15,15
     TRUE,TRUE,Zero Trust,/silent-authentication/v0/verify-ip-address,0.0026,1.0026,11/23/2025,USD,15,15
     TRUE,TRUE,TS.43 Silent Authentication,/silent-authentication/v2/ts43-retrieve-phone-number,0.0026,2.0026,11/23/2025,USD,15,15
     TRUE,TRUE,TS.43 Zero Trust Silent Authentication,/silent-authentication/v2/ts43-verify-phone-number,0.0026,3.0026,11/23/2025,USD,15,15

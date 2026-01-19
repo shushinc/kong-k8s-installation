@@ -9,7 +9,9 @@ import io
 import re
 import time  
 import requests
+from requests.auth import HTTPBasicAuth
 import redis
+from datetime import datetime
 
 from flask import Flask, request, jsonify
 
@@ -35,6 +37,12 @@ KONG_ADMIN_TOKEN = os.getenv("KONG_ADMIN_TOKEN")  # rightnow, kong admin endpoin
 DEFAULT_PRICING_TYPE = (os.getenv("DEFAULT_PRICING_TYPE") or "international").strip().lower()
 CLIENT_PRICING_CACHE_TTL = int(os.getenv("CLIENT_PRICING_CACHE_TTL", "300"))  # seconds
 
+# === Drupal analytics push (optional) ===
+DRUPAL_ANALYTICS_URL = (os.getenv("DRUPAL_ANALYTICS_URL") or "").strip()
+DRUPAL_BASIC_USER = (os.getenv("DRUPAL_BASIC_USER") or "").strip()
+DRUPAL_BASIC_PASS = (os.getenv("DRUPAL_BASIC_PASS") or "").strip()
+DRUPAL_TIMEOUT_SECONDS = float(os.getenv("DRUPAL_TIMEOUT_SECONDS", "10"))
+
 # redis config
 REDIS_HOST = os.getenv("REDIS_HOST", "ts43-redis.kong.svc.cluster.local")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
@@ -58,7 +66,39 @@ _client_type_lock = threading.Lock()
 
 # flask app
 app = Flask(__name__)
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+# ---- logging / debug mode ----
+_LOG_LEVEL_RAW = (os.getenv("LOG_LEVEL") or "INFO").strip().upper()
+_DEBUG_RAW = (os.getenv("DEBUG") or "").strip().lower()
+if _DEBUG_RAW in ("1", "true", "yes", "y", "on"):
+    _LOG_LEVEL_RAW = "DEBUG"
+
+LOG_LEVEL = getattr(logging, _LOG_LEVEL_RAW, logging.INFO)
+logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s [%(levelname)s] %(message)s")
+
+# ---- logging setup (REQUIRED) ----
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL, logging.INFO),
+    format="%(asctime)s %(levelname)s %(message)s"
+)
+
+logger = logging.getLogger(__name__)
+
+def _debug_json(label: str, obj, max_chars: int = 20000):
+    # Only log when logger is in DEBUG level
+    if not logging.getLogger().isEnabledFor(logging.DEBUG):
+        return
+
+    try:
+        import json
+        s = json.dumps(obj, indent=2, default=str)
+        if len(s) > max_chars:
+            s = s[:max_chars] + "\n...<truncated>..."
+        logging.debug("%s:\n%s", label, s)
+    except Exception as e:
+        logging.exception("Debug JSON failed for %s: %s", label, e)
+
 
 #- in-memry store---
 _aggr = defaultdict(lambda: {
@@ -134,20 +174,15 @@ def _load_pricing_locked() -> None:
                 if not endpoint:
                     continue
 
-                # Normalize endpoint (strip query parameters, trailing slash)
-                key = endpoint.split("?", 1)[0].rstrip("/") or "/"
-
-                available = (str(row.get("Available") or "").strip().upper() == "TRUE")
-                enabled = (str(row.get("Enabled") or "").strip().upper() == "TRUE")
-                if not (available and enabled):
-                    continue
+                # Normalize endpoint key (strip trailing slash)
+                endpoint_key = endpoint.rstrip("/")
 
                 # Try to read separate domestic / international prices if present
                 intl_raw = (
                     row.get("InternationalPrice")
                     or row.get("International Price")
                     or row.get("internationalprice")
-                    or row.get("Price")  
+                    or row.get("Price")
                     or ""
                 )
                 dom_raw = (
@@ -159,33 +194,37 @@ def _load_pricing_locked() -> None:
                 intl_price = _safe_float(intl_raw)
                 dom_price = _safe_float(dom_raw)
 
-                # here markup is treated as optional; if missing/invalid then its  0%
+                # Markup %
                 markup_raw = (
                     row.get("Markup")
                     or row.get("Markup%")
                     or row.get("Markup Percent")
                     or row.get("Markup_Percent")
-                    or row.get("MarkupPercentage")      
-                    or row.get("Markup Percentage")     
+                    or row.get("MarkupPercentage")
+                    or row.get("Markup Percentage")
                     or ""
                 )
                 markup_percent = _safe_float(markup_raw) or 0.0
 
+                # Human-friendly attribute/name from pricing CSV
+                api_attr = (
+                    row.get("API") 
+                    or row.get("APIAttributesName")
+                    or row.get("API Attribute")
+                    or row.get("APIAttributes")       
+                    or row.get("Attribute")
+                    or ""
+                )
+                api_attr = str(api_attr).strip() if api_attr is not None else ""
+
                 if intl_price is None and dom_price is None:
-                    # As a final fallback, if there is a generic Price column, use that.
-                    generic = _safe_float(row.get("Price"))
-                    if generic is not None:
-                        table[key] = {
-                            "international": generic,
-                            "domestic": generic,
-                            "markup": markup_percent,
-                        }
                     continue
 
-                table[key] = {
+                table[endpoint_key] = {
                     "international": intl_price,
                     "domestic": dom_price,
                     "markup": markup_percent,
+                    "api_attribute": api_attr,   # <-- NEW
                 }
 
         _pricing_table = table
@@ -200,6 +239,21 @@ def _load_pricing_locked() -> None:
         _pricing_table = {}
         _pricing_loaded = True
 
+def _api_attribute_for_endpoint(endpoint: str | None) -> str | None:
+    if not endpoint:
+        return None
+
+    # Lazy-load pricing if needed (same approach as _price_for_endpoint)
+    if not _pricing_loaded:
+        with _pricing_lock:
+            if not _pricing_loaded:
+                _load_pricing_locked()
+
+    key = str(endpoint).strip().split("?", 1)[0].rstrip("/") or "/"
+    row = (_pricing_table or {}).get(key) or {}
+    val = row.get("api_attribute") or ""
+    val = str(val).strip() if val is not None else ""
+    return val or None
         
 def _price_for_endpoint(endpoint: str | None, pricing_type: str | None = None) -> float:
     """
@@ -475,6 +529,126 @@ def _get_bq_client():
         return None
 
 
+
+def _collapse_rows_for_drupal(rows: list[dict]) -> list[dict]:
+    """
+    The BigQuery rows emitted by /trigger_aggregation are *segment-based*
+    (one row per transaction_type). Drupal expects one row per hour bucket.
+
+    So we collapse rows by (datatime, carrier_name, client, customer_name, endpoint, pricing_type),
+    summing est_revenue across segments and keeping the already-computed totals/avg latencies.
+    """
+    grouped: dict[tuple, dict] = {}
+    for r in rows or []:
+        key = (
+            str(r.get("datatime") or "").strip(),
+            str(r.get("carrier_name") or "").strip(),
+            str(r.get("client") or "").strip(),
+            str(r.get("customer_name") or "").strip(),
+            str(r.get("endpoint") or r.get("api_path") or "").strip(),
+            str(r.get("pricing_type") or "").strip(),
+        )
+        if key not in grouped:
+            grouped[key] = dict(r)
+            # start revenue sum at 0 and re-add below to be safe
+            grouped[key]["est_revenue"] = 0.0
+        grouped[key]["est_revenue"] = float(grouped[key].get("est_revenue") or 0.0) + float(r.get("est_revenue") or 0.0)
+    # normalize rounding like your code
+    for k in list(grouped.keys()):
+        grouped[k]["est_revenue"] = round(float(grouped[k].get("est_revenue") or 0.0), 6)
+    return list(grouped.values())
+
+
+def _to_drupal_payload(rows: list[dict]) -> list[dict]:
+    out: list[dict] = []
+    for r in rows or []:
+        dt = str(r.get("datatime") or "").strip()
+        api_path = str(r.get("endpoint") or r.get("api_path") or "/unknown").strip()
+
+        # slug (only as fallback)
+        attribute_slug = api_path.rstrip("/").split("/")[-1] if api_path else "unknown"
+
+        # WHAT YOU WANT: APIAttributes from pricing.csv for this endpoint
+        attribute_from_pricing = _api_attribute_for_endpoint(api_path)
+
+        # Final attribute value sent to moriarty
+        attribute_value = attribute_from_pricing or "Unknown"
+
+        # Analytical id can still use slug (stable + short)
+        hour_part = dt.replace(":", "-").replace(" ", "-")
+        analytical_id = f"{(r.get('client') or 'unknown')}_{hour_part}_{attribute_slug}".replace("/", "_")
+
+        total_full = int(r.get("total_full_rate_billable_transaction") or 0)
+        total_low = int(r.get("total_lower_rate_billable_transaction") or 0)
+        total_no = int(r.get("total_no_billable_transaction") or 0)
+
+        formatted_ts = dt.replace("T", " ").replace("Z", "")
+        
+        out.append({
+            "carrier_name": r.get("carrier_name") or "Unknown",
+            "client": r.get("client") or "Unknown",
+            "attribute": attribute_value,  
+            "customer_name": r.get("customer_name") or "Unknown",
+            "api_path": api_path,
+            "analytical_id": analytical_id,
+            "timestamp_interval": formatted_ts,
+            "status_counts": [total_full, total_low, total_no],
+            "avg_latency_full_rate": float(r.get("avg_latency_full_rate") or 0.0),
+            "avg_latency_lower_rate": float(r.get("avg_latency_lower_rate") or 0.0),
+            "avg_latency_no_billable": float(r.get("avg_latency_no_billable") or 0.0),
+            "total_full_rate_billable_transaction": total_full,
+            "total_lower_rate_billable_transaction": total_low,
+            "total_no_billable_transaction": total_no,
+            "est_revenue": float(r.get("est_revenue") or 0.0),
+        })
+
+    return out
+
+
+def send_rows_to_drupal(rows: list[dict]) -> tuple[bool, str]:
+    # Always return (ok, msg) so callers can unpack safely.
+    if not rows:
+        return True, "No rows to send to Drupal"
+
+    if not DRUPAL_ANALYTICS_URL:
+        msg = "DRUPAL_ANALYTICS_URL not set; skipping Drupal push"
+        logging.info(msg)
+        return False, msg
+
+    if not DRUPAL_BASIC_USER or not DRUPAL_BASIC_PASS:
+        msg = "DRUPAL_BASIC_USER/DRUPAL_BASIC_PASS not set; skipping Drupal push"
+        logging.info(msg)
+        return False, msg
+
+    payload = _to_drupal_payload(rows)
+
+    try:
+        logging.info("Preparing to send %d analytics rows to Drupal", len(payload))
+        logging.info("FULL DRUPAL PAYLOAD: %s", json.dumps(payload, indent=2))
+        resp = requests.post(
+            DRUPAL_ANALYTICS_URL,
+            json=payload,
+            auth=HTTPBasicAuth(DRUPAL_BASIC_USER, DRUPAL_BASIC_PASS),
+            timeout=DRUPAL_TIMEOUT_SECONDS,
+        )
+
+        if 200 <= resp.status_code < 300:
+            msg = f"Drupal push OK: status={resp.status_code} rows={len(payload)}"
+            logging.info(msg)
+            return True, msg
+
+        # Non-2xx is a failure; include small body preview for debugging
+        body_preview = (resp.text or "")[:1000]
+        msg = f"Drupal push FAILED: status={resp.status_code} body={body_preview!r}"
+        logging.warning(msg)
+        return False, msg
+
+    except Exception as e:
+        logging.exception("Drupal push exception")
+        return False, f"Drupal push exception: {e}"
+
+
+
 def _update_k8s_configmap(csv_text: str) -> None:
     """
     Update the pricing ConfigMap so new pricing survives pod restarts.
@@ -628,7 +802,8 @@ def debug_buffer():
 
             # unit price for each endpoint (per successful transaction)
             unit_price = _price_for_endpoint(api_path, pricing_type)
-
+            attribute_from_pricing = _api_attribute_for_endpoint(api_path)
+            attribute_value = attribute_from_pricing or "Unknown"
              # client_type + markup
             client_type = _get_client_type(client)          # 'enterprise' or 'demandpartner'
             markup_percent = _markup_for_endpoint(api_path) # e.g. 20 for 20%
@@ -666,6 +841,7 @@ def debug_buffer():
                     "datatime": hour_iso,
                     "client": client,
                     "api_path": api_path,
+                    "attribute": attribute_value,
                     "carrier_name": final_carrier_name,
                     "customer_name": customer_name,
 
@@ -689,11 +865,28 @@ def debug_buffer():
 
 @app.route("/trigger_aggregation", methods=["POST"])
 def trigger_aggregation():
+    logging.info("trigger_aggregation called")
+    if logging.getLogger().isEnabledFor(logging.DEBUG):
+        try:
+            # show basic runtime config in debug
+            logging.debug("BQ_PROJECT_ID=%s BQ_DATASET=%s BQ_TABLE=%s", BQ_PROJECT_ID, BQ_DATASET, BQ_TABLE)
+            logging.debug("DRUPAL_ANALYTICS_URL=%s", DRUPAL_ANALYTICS_URL)
+        except Exception as e:
+            logging.debug("Debug logging skipped: %s", e)
 
     with _lock:
         # snapshot current state and then clear so we don't double-insert
         snapshot = dict(_aggr)
         _aggr.clear()
+
+    logging.info("Aggregation snapshot: groups=%d", len(snapshot))
+    if logging.getLogger().isEnabledFor(logging.DEBUG):
+        # show first few keys to sanity check grouping
+        try:
+            logging.debug("Snapshot sample keys: %s", list(snapshot.keys())[:5])
+        except Exception:
+            pass
+
 
     rows = []
     for key, v in snapshot.items():
@@ -715,7 +908,7 @@ def trigger_aggregation():
         client_type = _get_client_type(client)          # 'enterprise' or 'demandpartner'
         markup_percent = _markup_for_endpoint(api_path) # e.g. 20 for 20%
 
-
+        
         # per-status avg latencies
         avg_200 = (v["200"]["latency_sum"] / total_200) if total_200 else 0.0
         avg_404 = (v["404"]["latency_sum"] / total_404) if total_404 else 0.0
@@ -727,7 +920,12 @@ def trigger_aggregation():
             ("Unsuccessful Transactions", total_404, avg_404),
             ("Other", total_other, avg_other),
         ]
-
+        attribute_from_pricing = _api_attribute_for_endpoint(api_path)
+        attribute_value = attribute_from_pricing or "Unknown"
+        if attribute_value == "Unknown":
+            logging.debug("Skipping BQ export for endpoint %s: Attribute is Unknown", api_path)
+            continue
+        
         for tx_type, tx_count, tx_avg in segments:
             if tx_count <= 0:
                 continue
@@ -755,7 +953,7 @@ def trigger_aggregation():
                 "client": client,
                 "customer_name": customer_name,
                 "endpoint": api_path,
-
+                "attribute": attribute_value,
                 # row segment
                 "transaction_type": tx_type,
                 "transaction_type_count": tx_count,
@@ -778,19 +976,33 @@ def trigger_aggregation():
     # Insert into BigQuery if configured; otherwise return what would be inserted.
     client_bq = _get_bq_client()
     if client_bq is None:
-        # If BQ is not configured, just return the rows to inspect them.
-        return jsonify({"rows": rows}), 200
+        # If BQ is not configured, still try pushing to Drupal (optional), then return rows to inspect.
+        drupal_ok, drupal_msg = send_rows_to_drupal(rows)
+        return jsonify({"rows": rows, "drupal_ok": drupal_ok, "drupal_msg": drupal_msg}), 200
 
     if not rows:
         return jsonify({"inserted": 0}), 200
 
     table_id = f"{BQ_PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}"
     try:
+        _debug_json("BigQuery rows (about to insert)", rows)
+        logging.info("BigQuery insert: table=%s rows=%d", table_id, len(rows))
         errors = client_bq.insert_rows_json(table_id, rows)
+
         if errors:
             logging.error(f"BigQuery insert errors: {errors}")
             return jsonify({"inserted": 0, "errors": errors}), 500
-        return jsonify({"inserted": len(rows)}), 200
+
+        # Push the same aggregated hour-bucket values to Drupal (optional)
+        _debug_json("Drupal rows (about to send)", rows)
+
+        drupal_ok, drupal_msg = send_rows_to_drupal(rows)
+        if not drupal_ok:
+            logging.warning(drupal_msg)
+        else:
+            logging.info(drupal_msg)
+
+        return jsonify({"inserted": len(rows), "drupal_ok": drupal_ok, "drupal_msg": drupal_msg}), 200
     except Exception as e:
         logging.error(f"BigQuery insertion failed: {e}")
         return jsonify({"inserted": 0, "error": str(e)}), 500
@@ -798,11 +1010,18 @@ def trigger_aggregation():
 @app.route("/upload_pricing", methods=["POST"])
 def upload_pricing():
     """
-    Upload a new pricing.csv, reload it in memory, and push it to BigQuery
+    Accept pricing.csv send by moriarty:
+      - multipart/form-data with file field named 'file'
+      - OR JSON body: {"csv": "<csv text>"}
+
+    Then:
+      1) rebuild in-memory _pricing_table in the same shape as _load_pricing_locked()
+      2) mark pricing loaded
+      3) persist to K8s ConfigMap via _update_k8s_configmap(csv_text)
     """
     global _pricing_loaded, _pricing_table
 
-    # 1) Get CSV text from multipart or JSON
+    # ---------- 1) Read CSV text ----------
     csv_text = None
 
     # multipart/form-data
@@ -811,123 +1030,125 @@ def upload_pricing():
         data = uploaded_file.read()
         if not data:
             return jsonify({"error": "uploaded file is empty"}), 400
-        try:
-            csv_text = data.decode("utf-8")
-        except UnicodeDecodeError:
-            csv_text = data.decode("latin-1")
+        csv_text = data.decode("utf-8", errors="replace")
 
-    # JSON { "csv": "..." }
-    if csv_text is None:
+    # application/json
+    if not csv_text:
         payload = request.get_json(silent=True) or {}
         csv_text = payload.get("csv")
         if not csv_text:
             return jsonify({
-                "error": "no pricing data provided; upload as multipart 'file' or JSON field 'csv'"
+                "error": "No CSV found. Send multipart file field 'file' or JSON {'csv': '...'}"
             }), 400
 
-    # 2) Parse CSV and rebuild in-memory pricing table (no file write needed)
-    table = {}
-    reader = csv.DictReader(io.StringIO(csv_text))
-
-    for row in reader:
-        endpoint = (row.get("Endpoint") or "").strip()
-
-        # Prefer "International Price" but allow older "Price" column
-        price_str = (
-            (row.get("International Price") or row.get("InternationalPrice") or row.get("internationalprice") or row.get("Price"))
-            or ""
-        ).strip()
-
-        available = (row.get("Available") or "").strip().upper() == "TRUE"
-        enabled = (row.get("Enabled") or "").strip().upper() == "TRUE"
-
-        # Skip rows without endpoint or price, or not available/enabled
-        if not endpoint or not price_str or not (available and enabled):
-            continue
-
+    def _safe_float(x):
         try:
-            price = float(price_str)
+            s = ("" if x is None else str(x)).strip()
+            return float(s) if s != "" else None
         except Exception:
-            logging.warning(f"Invalid price '{price_str}' for endpoint '{endpoint}', skipping")
-            continue
+            return None
 
-        table[endpoint] = {
-            "price": price,
-            "available": available,
-            "enabled": enabled,
-        }
+    # ---------- 2) Parse CSV and rebuild pricing table (correct structure) ----------
+    table = {}
+    rows_in_memory = 0
+    skipped_no_endpoint = 0
+    skipped_not_enabled = 0
+    skipped_no_price = 0
 
-    with _pricing_lock:
+    try:
+        import csv as _csv
+        import io as _io
+
+        reader = _csv.DictReader(_io.StringIO(csv_text))
+        if not reader.fieldnames:
+            return jsonify({"error": "CSV has no header row"}), 400
+
+        for row in reader:
+            # Availability/enabled flags (keep consistent with your file)
+            available = str(row.get("Available", "")).strip().upper()
+            enabled = str(row.get("Enabled", "")).strip().upper()
+
+            # Only load enabled rows
+            if available not in ("TRUE", "YES", "1") or enabled not in ("TRUE", "YES", "1"):
+                skipped_not_enabled += 1
+                continue
+
+            endpoint = (row.get("Endpoint") or row.get("endpoint") or "").strip()
+            if not endpoint:
+                # bundle rows with empty Endpoint are ignored for endpoint lookups
+                skipped_no_endpoint += 1
+                continue
+
+            # Normalize endpoint key (match your lookup logic)
+            endpoint_key = endpoint.split("?", 1)[0].rstrip("/") or "/"
+
+            intl_price = _safe_float(row.get("InternationalPrice") or row.get("International Price"))
+            dom_price = _safe_float(row.get("DomesticPrice") or row.get("Domestic Price"))
+
+            if intl_price is None and dom_price is None:
+                skipped_no_price += 1
+                continue
+
+            markup_raw = (
+                row.get("MarkupPercentage")
+                or row.get("Markup Percentage")
+                or row.get("Markup%")
+                or row.get("Markup")
+                or 0
+            )
+            markup_percent = _safe_float(markup_raw) or 0.0
+
+            # Your "attribute" value comes from the CSV "API" column
+            api_attr = (
+                row.get("API")
+                or row.get("Api")
+                or row.get("api")
+                or row.get("API Attribute")
+                or row.get("Attribute")
+                or ""
+            )
+            api_attr = str(api_attr).strip() if api_attr is not None else ""
+
+            #same STRUCTURE 
+            table[endpoint_key] = {
+                "international": intl_price,
+                "domestic": dom_price,
+                "markup": markup_percent,
+                "api_attribute": api_attr,
+            }
+            rows_in_memory += 1
+
+    except Exception as e:
+        logging.exception("Failed to parse pricing CSV")
+        return jsonify({"error": f"Failed to parse CSV: {e}"}), 400
+
+    # ---------- 3) Swap pricing table atomically ----------
+    with _lock:
         _pricing_table = table
         _pricing_loaded = True
-        rows_in_memory = len(_pricing_table)
 
-    logging.info("Loaded %d pricing rows from upload_pricing", rows_in_memory)
+    logging.info(
+        "upload_pricing: loaded=%d skipped_not_enabled=%d skipped_no_endpoint=%d skipped_no_price=%d",
+        rows_in_memory, skipped_not_enabled, skipped_no_endpoint, skipped_no_price
+    )
 
-    # 3) Push CSV to BigQuery into pricing_YYYYMMDD (with sanitized column names)
-    client_bq = _get_bq_client()
-    bq_result = {"uploaded": False}
-
-    if client_bq:
-        try:
-            from google.cloud import bigquery as bq_module
-
-            # Re-read CSV and write out a cleaned version with BQ-safe headers
-            input_buf = io.StringIO(csv_text)
-            reader = csv.DictReader(input_buf)
-
-            orig_fieldnames = reader.fieldnames or []
-            sanitized_fieldnames = [_sanitize_bq_field(fn) for fn in orig_fieldnames]
-
-
-            out_buf = io.StringIO()
-            writer = csv.DictWriter(out_buf, fieldnames=sanitized_fieldnames)
-            writer.writeheader()
-
-            for row in reader:
-                out_row = {}
-                for orig, san in zip(orig_fieldnames, sanitized_fieldnames):
-                    out_row[san] = row.get(orig)
-                writer.writerow(out_row)
-
-            cleaned_csv = out_buf.getvalue()
-
-            now_str = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            table_name = f"pricing_{now_str}"
-            table_id = f"{BQ_PROJECT_ID}.{BQ_DATASET}.{table_name}"      
-
-            job_config = bq_module.LoadJobConfig(
-                source_format=bq_module.SourceFormat.CSV,
-                skip_leading_rows=1,
-                autodetect=True,
-                write_disposition=bq_module.WriteDisposition.WRITE_TRUNCATE,
-            )
-
-            load_job = client_bq.load_table_from_file(
-                io.StringIO(cleaned_csv),
-                table_id,
-                job_config=job_config,
-            )
-            load_job.result()  # wait for completion
-
-            dest_table = client_bq.get_table(table_id)
-            bq_result = {
-                "uploaded": True,
-                "table": table_name,
-                "row_count": dest_table.num_rows,
-            }
-        except Exception as e:
-            logging.error("Failed to load pricing CSV into BigQuery: %s", e)
-            bq_result = {"uploaded": False, "error": str(e)}
-
-    # 4) Update Kubernetes ConfigMap so the new pricing is persisted
-    _update_k8s_configmap(csv_text)
-
+    # ---------- 4) Persist to ConfigMap (your existing helper) ----------
+    try:
+        _update_k8s_configmap(csv_text)
+    except Exception as e:
+        logging.error("upload_pricing: ConfigMap update failed: %s", e)
+        # Still return ok for in-memory reload, but signal CM failure
+        return jsonify({
+            "status": "ok",
+            "pricing_rows_in_memory": rows_in_memory,
+            "configmap_updated": False,
+            "configmap_error": str(e),
+        }), 200
 
     return jsonify({
         "status": "ok",
         "pricing_rows_in_memory": rows_in_memory,
-        "bigquery": bq_result,
+        "configmap_updated": True,
     }), 200
 
 
