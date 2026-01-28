@@ -19,6 +19,11 @@ spec:
             - "/state/{{ .Values.stateFileName }}"
             - "--kong-addr"
             - "{{ .Values.kongAdminURL }}"
+            {{- $mode := default "full" .Values.deck.mode }}
+            {{- if eq $mode "routes-only" }}
+            # Routes/services-only mode: do NOT touch consumers
+            - "--skip-consumers"
+            {{- end }}
           env:
 {{- if .Values.rbac.enabled }}
             - name: KONG_ADMIN_TOKEN

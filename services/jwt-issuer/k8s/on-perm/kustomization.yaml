@@ -9,7 +9,7 @@ resources:
 # Pin/override your image/tag at deploy-time
 images:
   - name: us-central1-docker.pkg.dev/sherlock-004/ts43/jwt-issuer
-    newTag: v5  # change to a git SHA/tag you build
+    newTag: v9  # change to a git SHA/tag you build
 
 patches:
   - path: patch-env.yaml

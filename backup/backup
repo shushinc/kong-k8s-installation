@@ -1,0 +1,10 @@
+kubectl run pg-dump-once -n kong --rm -i \
+  --image=postgres:17 \
+  --restart=Never \
+  --env="PGHOST=postgres-kong.kong.svc.cluster.local" \
+  --env="PGDATABASE=kong" \
+  --env="PGUSER=kong" \
+  --env="PGPASSWORD=supersecret-kong" \
+  --env="PGPORT=5432" \
+  -- /bin/bash -lc 'pg_dump --format=custom --no-owner --no-acl' \
+  > kong.backup.$(date +%F).dump

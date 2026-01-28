@@ -1,4 +1,9 @@
 _format_version: "3.0"
+plugins:
+  - name: custom-log-plugin
+    config:
+      log_method: GET
+      log_status_code: 401
 services:
 - name: camera-auth-service
     # The host must match the Kubernetes Service name for your microservice.
@@ -20,6 +25,26 @@ services:
             replace:
               # After stripping, this sets the path to /authorizer for your FastAPI app.
               uri: "/authorizer"
+    - name: camara-authorizer-v2-route
+      paths:
+        - /v2/authorize
+      strip_path: true
+      tags: [auth, camara-v2.0]
+      plugins:
+        - name: request-transformer
+          config:
+            replace:
+              uri: "/v2/authorize"
+    - name: camara-token-v2-route
+      paths:
+        - /v2/token
+      strip_path: true
+      tags: [auth, camara-v2.0]
+      plugins:
+        - name: request-transformer
+          config:
+            replace:
+              uri: "/v2/token"
     - name: camara-token-route
       paths:
         - /camara/token
@@ -43,6 +68,8 @@ services:
       config:
         scopes:
           - sherlockapiresource/write
+          - number-verification:verify
+          - number-verification:device-phone-number:read
         global_credentials: true
         provision_key: OAuth-Token-Dispenser-Key
         enable_authorization_code: true
@@ -590,6 +617,33 @@ services:
               kong.service.request.set_header("phonenumber", login_hint)
             end
             end
+    - name: post-function
+      config:
+        header_filter:
+          - |
+            return function()
+              local status = kong.response.get_status()
+
+              if status == 401 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.clear_header("WWW-Authenticate")
+
+                kong.response.exit(401, {
+                  status = 401,
+                  code = "UNAUTHENTICATED",
+                  message = "Unauthorized"
+                })
+              end
+
+              if status == 403 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.exit(403, {
+                  status = 403,
+                  code = "PERMISSION_DENIED",
+                  message = "Forbidden"
+                })
+              end
+            end
     regex_priority: 200
     strip_path: false
     tags: [sherlock]
@@ -656,6 +710,34 @@ services:
               kong.service.request.set_header("phonenumber", login_hint)
             end
             end
+    - name: post-function
+      config:
+        header_filter:
+          - |
+            return function()
+              local status = kong.response.get_status()
+
+              if status == 401 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.clear_header("WWW-Authenticate")
+
+                kong.response.exit(401, {
+                  status = 401,
+                  code = "UNAUTHENTICATED",
+                  message = "Unauthorized"
+                })
+              end
+
+              if status == 403 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.exit(403, {
+                  status = 403,
+                  code = "PERMISSION_DENIED",
+                  message = "Forbidden"
+                })
+              end
+            end
+
     regex_priority: 200
     strip_path: false
     tags: [sherlock]
@@ -791,11 +873,287 @@ services:
               kong.service.request.set_header("imsi", login_hint)
             end
             end
+    - name: post-function
+      config:
+        header_filter:
+          - |
+            return function()
+              local status = kong.response.get_status()
+
+              if status == 401 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.clear_header("WWW-Authenticate")
+
+                kong.response.exit(401, {
+                  status = 401,
+                  code = "UNAUTHENTICATED",
+                  message = "Unauthorized"
+                })
+              end
+
+              if status == 403 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.exit(403, {
+                  status = 403,
+                  code = "PERMISSION_DENIED",
+                  message = "Forbidden"
+                })
+              end
+            end
+
     regex_priority: 200
     strip_path: false
     tags: [sherlock, ts43, silent-authentication]
     service:
       id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 3f5b3d5a-9b2f-4d2e-9f3a-7c8e1d2a3b4c
+    methods:
+    - POST
+    name: sherlock-api_number-verification-v2-verify-post
+    paths:
+    - ~/number-verification/v2/verify$
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: iss
+          claims_to_verify: [ exp ]
+          run_on_preflight: true
+      - name: pre-function
+        config:
+          access:
+            - |
+              return function()
+                local required_scope = "number-verification:verify"
+
+                -- carry correlator back (if client sends it)
+                local x_corr = kong.request.get_header("x-correlator")
+
+                local auth = kong.request.get_header("authorization")
+                if not auth then
+                  -- let jwt plugin handle missing token -> 401
+                  return
+                end
+
+                local token = auth:match("Bearer%s+(.+)")
+                if not token then
+                  return
+                end
+
+                -- extract base64url payload (middle segment)
+                local payload_b64 = token:match("%.(.-)%.")
+                if not payload_b64 then
+                  return
+                end
+
+                -- base64url -> base64 (replace chars + pad)
+                payload_b64 = payload_b64:gsub("-", "+"):gsub("_", "/")
+                local pad = #payload_b64 % 4
+                if pad > 0 then
+                  payload_b64 = payload_b64 .. string.rep("=", 4 - pad)
+                end
+
+                local payload_json = ngx.decode_base64(payload_b64)
+                if not payload_json then
+                  return
+                end
+
+                -- 1) login_hint -> upstream header
+                local login_hint = payload_json:match([["login_hint"%s*:%s*"(.-)"]])
+                if login_hint and #login_hint > 0 then
+                  kong.service.request.set_header("phonenumber", login_hint)
+                end
+
+                -- 2) scope check
+                local scope_str = payload_json:match([["scope"%s*:%s*"(.-)"]]) or ""
+                -- scope is space-separated: "openid ... number-verification:verify"
+                local has_scope = false
+                for s in scope_str:gmatch("%S+") do
+                  if s == required_scope then
+                    has_scope = true
+                    break
+                  end
+                end
+
+                if not has_scope then
+                  if x_corr then
+                    kong.response.set_header("x-correlator", x_corr)
+                  end
+                  kong.response.set_header("Content-Type", "application/json")
+                  return kong.response.exit(403, {
+                    status = 403,
+                    code = "PERMISSION_DENIED",
+                    message = "Forbidden"
+                  })
+                end
+              end
+      - name: post-function
+        config:
+          header_filter:
+            - |
+              return function()
+                local status = kong.response.get_status()
+                local x_corr = kong.request.get_header("x-correlator")
+
+                if status == 401 then
+                  if x_corr then
+                    kong.response.set_header("x-correlator", x_corr)
+                  end
+
+                  kong.response.set_header("Content-Type", "application/json")
+                  kong.response.clear_header("WWW-Authenticate")
+
+                  return kong.response.exit(401, {
+                    status = 401,
+                    code = "UNAUTHENTICATED",
+                    message = "Unauthorized"
+                  })
+                end
+
+                if status == 403 then
+                  if x_corr then
+                    kong.response.set_header("x-correlator", x_corr)
+                  end
+
+                  kong.response.set_header("Content-Type", "application/json")
+
+                  return kong.response.exit(403, {
+                    status = 403,
+                    code = "PERMISSION_DENIED",
+                    message = "Forbidden"
+                  })
+                end
+              end
+
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock, camara-v2.0]
+    service:
+      id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: a91c7e42-6b9d-4f8c-8e21-5d3a2f9c1b77
+    methods:
+      - GET
+    name: sherlock-api_number-verification-v2-device-phone-number-get
+    paths:
+      - ~/number-verification/v2/device-phone-number$
+    plugins:
+      - name: jwt
+        config:
+          key_claim_name: iss
+          claims_to_verify: [ exp ]
+          run_on_preflight: true
+      - name: pre-function
+        config:
+          access:
+            - |
+              return function()
+                local required_scope = "number-verification:device-phone-number:read"
+
+                -- carry correlator back (if client sends it)
+                local x_corr = kong.request.get_header("x-correlator")
+
+                local auth = kong.request.get_header("authorization")
+                if not auth then
+                  -- let jwt plugin handle missing token -> 401
+                  return
+                end
+
+                local token = auth:match("Bearer%s+(.+)")
+                if not token then
+                  return
+                end
+
+                -- extract base64url payload (middle segment)
+                local payload_b64 = token:match("%.(.-)%.")
+                if not payload_b64 then
+                  return
+                end
+
+                -- base64url -> base64 (replace chars + pad)
+                payload_b64 = payload_b64:gsub("-", "+"):gsub("_", "/")
+                local pad = #payload_b64 % 4
+                if pad > 0 then
+                  payload_b64 = payload_b64 .. string.rep("=", 4 - pad)
+                end
+
+                local payload_json = ngx.decode_base64(payload_b64)
+                if not payload_json then
+                  return
+                end
+
+                -- 1) login_hint -> upstream header
+                local login_hint = payload_json:match([["login_hint"%s*:%s*"(.-)"]])
+                if login_hint and #login_hint > 0 then
+                  kong.service.request.set_header("phonenumber", login_hint)
+                end
+
+                -- 2) scope check
+                local scope_str = payload_json:match([["scope"%s*:%s*"(.-)"]]) or ""
+                -- scope is space-separated: "openid ... number-verification:device-phone-number:read"
+                local has_scope = false
+                for s in scope_str:gmatch("%S+") do
+                  if s == required_scope then
+                    has_scope = true
+                    break
+                  end
+                end
+
+                if not has_scope then
+                  if x_corr then
+                    kong.response.set_header("x-correlator", x_corr)
+                  end
+                  kong.response.set_header("Content-Type", "application/json")
+                  return kong.response.exit(403, {
+                    status = 403,
+                    code = "PERMISSION_DENIED",
+                    message = "Forbidden"
+                  })
+                end
+              end
+
+      - name: post-function
+        config:
+          header_filter:
+            - |
+              return function()
+                local status = kong.response.get_status()
+                local x_corr = kong.request.get_header("x-correlator")
+
+                if status == 401 then
+                  if x_corr then
+                    kong.response.set_header("x-correlator", x_corr)
+                  end
+
+                  kong.response.set_header("Content-Type", "application/json")
+                  kong.response.clear_header("WWW-Authenticate")
+
+                  return kong.response.exit(401, {
+                    status = 401,
+                    code = "UNAUTHENTICATED",
+                    message = "Unauthorized"
+                  })
+                end
+
+                if status == 403 then
+                  if x_corr then
+                    kong.response.set_header("x-correlator", x_corr)
+                  end
+
+                  kong.response.set_header("Content-Type", "application/json")
+
+                  return kong.response.exit(403, {
+                    status = 403,
+                    code = "PERMISSION_DENIED",
+                    message = "Forbidden"
+                  })
+                end
+              end
+
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock, camara-v2.0]
+    service:
+      id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+
   - id: 2c8e45a9-8fb0-4e3f-9f6a-7204c63e80e7
     methods:
     - POST
@@ -836,6 +1194,34 @@ services:
               kong.service.request.set_header("imsi", login_hint)
             end
             end
+    - name: post-function
+      config:
+        header_filter:
+          - |
+            return function()
+              local status = kong.response.get_status()
+
+              if status == 401 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.clear_header("WWW-Authenticate")
+
+                kong.response.exit(401, {
+                  status = 401,
+                  code = "UNAUTHENTICATED",
+                  message = "Unauthorized"
+                })
+              end
+
+              if status == 403 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.exit(403, {
+                  status = 403,
+                  code = "PERMISSION_DENIED",
+                  message = "Forbidden"
+                })
+              end
+            end
+
     regex_priority: 200
     strip_path: false
     tags: [sherlock, ts43, silent-authentication]
