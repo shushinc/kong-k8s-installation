@@ -28,7 +28,7 @@ services:
     - name: camara-authorizer-v2-route
       paths:
         - /v2/authorize
-      strip_path: true
+      strip_path: false
       tags: [auth, camara-v2.0]
       plugins:
         - name: request-transformer
@@ -38,7 +38,7 @@ services:
     - name: camara-token-v2-route
       paths:
         - /v2/token
-      strip_path: true
+      strip_path: false
       tags: [auth, camara-v2.0]
       plugins:
         - name: request-transformer
