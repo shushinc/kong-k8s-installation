@@ -200,26 +200,38 @@ kubectl -n kong get deploy,po,svc | grep jwt-issuer
   ```
 
 
-Deploy TS 43 Endpoint to KONG:
+## Deploy sherlock Endpoint to KONG( For 1st Time Installation):
 # dry-run
 ```bash
-helm upgrade --install sherlock-kong-config ./charts/Sherlock -n kong --debug --dry-run
+helm upgrade --install sherlock-kong-config ./charts/Sherlock -n kong  --set deck.mode=full --debug --dry-run
 
 (or)
 helm upgrade --install sherlock-kong-config ./charts/Sherlock \
     -n kong \
+    --set deck.mode=full \
     --debug --dry-run \
     --kubeconfig /etc/rancher/k3s/k3s.yaml
   ```
 # apply & wait
 ```bash
-helm upgrade --install sherlock-kong-config  ./charts/Sherlock -n kong 
+helm upgrade --install sherlock-kong-config  ./charts/Sherlock --set deck.mode=full -n kong 
 
 (or)
 helm upgrade --install sherlock-kong-config  ./charts/Sherlock \
     -n kong \
+    --set deck.mode=full \
     --kubeconfig /etc/rancher/k3s/k3s.yaml
-```
+  ```
+
+## Update  sherlock Endpoint to KONG(only for update sherlock endpoints):
+```bash
+helm upgrade --install sherlock-kong-config ./charts/Sherlock -n kong    --set deck.mode=routes-only --debug --dry-run
+  ```
+# apply & wait
+```bash
+helm upgrade --install sherlock-kong-config ./charts/Sherlock -n kong    --set deck.mode=routes-only
+  ```
+
 # In the KONG UI , for gateway service and route
 ```bash
   Example ( replace the host to yours)
@@ -275,7 +287,7 @@ install-{clientname}.yaml
 ```bash
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.15 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.16.2 \
   --push .
 ```
 

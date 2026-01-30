@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+
+#  This is the  path for installation folder
+# This is the  path for airgapped-installation folder
+# - ../airgapped-installation/kong-rendered.yaml
+resources:
+- proxy-ingress.yaml
+
+secretGenerator:
+  - name: kong-enterprise-license
+    files:
+      - license=secrets/license.json
+generatorOptions:
+  disableNameSuffixHash: true
+
+helmCharts:
+  - name: kong
+    repo: https://charts.konghq.com
+    releaseName: kong
+    namespace: kong
+    valuesFile: application.yaml
