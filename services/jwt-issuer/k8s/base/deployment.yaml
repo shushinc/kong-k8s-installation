@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: us-central1-docker.pkg.dev/sherlock-004/ts43/jwt-issuer:v5
+          image: us-central1-docker.pkg.dev/sherlock-004/ts43/jwt-issuer:v9
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080

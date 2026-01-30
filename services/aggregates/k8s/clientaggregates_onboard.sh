@@ -99,8 +99,6 @@ AGGREGATOR_CONFIGMAP_NAME="aggregator-config-${CLIENT_NAME}"
 
 # Key paths
 KEY_FILE_PATH="./gcp/key.json"
-
-# Image
 IMAGE_PATH="us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.16.30"
 
 echo ""
