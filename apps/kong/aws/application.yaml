@@ -11,6 +11,9 @@ enterprise:
 
 env:
   proxy_access_log: "/dev/null"
+  trusted_ips: "0.0.0.0/0"
+  real_ip_header: "X-Forwarded-For"
+  real_ip_recursive: "on"
   KONG_LOG_LEVEL: notice
   plugins: "bundled,custom-log-plugin"
   LUA_PACKAGE_PATH: "/usr/local/?.lua;;"
@@ -33,8 +36,8 @@ env:
   # admin_gui_api_url: "http://kong-kong-admin.kong.svc.cluster.local:8001"
   # admin_gui_url: "http://kong-kong-manager.kong.svc.cluster.local:8002"
 
-  admin_gui_url: "http://aaf8f0fae6556463083363d768d883c5-527214466.us-east-1.elb.amazonaws.com:30516"
-  admin_gui_api_url: "http://aaf8f0fae6556463083363d768d883c5-527214466.us-east-1.elb.amazonaws.com:32081"
+  admin_gui_url: "http://localhost:8002"
+  admin_gui_api_url: "http://localhost:8001"
 
 # Proxy Endpoint
 proxy:
@@ -65,7 +68,7 @@ admin:
 # Kong Admin UI     
 manager:
   enabled: true
-  type: LoadBalancer
+  type: ClusterIP
   http: 
     enabled: true
     servicePort: 8002
