@@ -15,6 +15,8 @@ import requests
 import redis
 from fastapi import FastAPI, Response, Form, HTTPException, Header, Request, Query
 from fastapi.responses import JSONResponse, RedirectResponse
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+now = int(time.time())
 
 # =========================
 # Logging configuration
@@ -111,6 +113,7 @@ REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 REDIS_TTL = int(os.getenv("REDIS_TTL", 300))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+OIDC_ISSUER = os.environ.get("OIDC_ISSUER","https://api.dev.k.shush.tech")
 
 # --- Redis Client ---
 _redis_client = None
@@ -175,7 +178,7 @@ def get_consumer_details_from_kong(client_id: str) -> Tuple[str, str] | None:
             if cred.get("client_id") == client_id:
                 credential = cred
                 break  # Found the exact match, stop searching
-
+        log.debug(f"credential '{credential}'")
         if not credential:
             log.warning(f"API returned credentials, but none had an exact match for client_id: {client_id}")
             return None
@@ -205,9 +208,15 @@ def get_consumer_details_from_kong(client_id: str) -> Tuple[str, str] | None:
         if not consumer_username:
             log.error(f"Could not find username for consumer_id: {consumer_id}")
             return None
-
+            
         log.debug(f"Resolved consumer_username={consumer_username} for client_id={client_id}")
-        return client_secret, consumer_username
+        
+        redirect_uris = credential.get("redirect_uris") or []
+        if not isinstance(redirect_uris, list):
+            redirect_uris = []
+        log.debug(f"Resolved redirect_uris={redirect_uris} for client_id={client_id}")
+            
+        return client_secret, consumer_username, redirect_uris
 
     except requests.RequestException as e:
         log.error(f"Error calling Kong Admin API: {e}")
@@ -221,7 +230,9 @@ def store_auth_code(
     client_secret: str, 
     consumer_username: str,
     scope: Optional[str] = None,
-    api_version: str = "v1"  # New parameter to differentiate v1 and v2
+    api_version: str = "v1",
+    nonce: Optional[str] = None, 
+    max_age: Optional[str] = None 
 ) -> bool:
     try:
         redis_client = get_redis_client()
@@ -238,11 +249,28 @@ def store_auth_code(
             "api_version": api_version
         }
         
+        if nonce:
+            data_to_store["nonce"] = nonce
+            
+        if max_age is not None:
+            data_to_store["auth_time"] = now
+            data_to_store["max_age"] = max_age 
+            
         redis_value = json.dumps(data_to_store)
         
-        log.debug(f"Redis SETEX key={redis_key} ttl={REDIS_TTL} value.redacted="
-                  f"{{'msisdn': '{msisdn}', 'api_version': '{api_version}', 'client_id': '{client_id}', "
-                  f"'client_secret': '{_redact(client_secret)}', 'consumer_username': '{consumer_username}'}}")
+        log.debug(
+            f"Redis SETEX key={redis_key} ttl={REDIS_TTL} value.redacted="
+            f"{{'msisdn': '{msisdn}', 'api_version': '{api_version}', "
+            f"'client_id': '{client_id}', "
+            f"'client_secret': '{_redact(client_secret)}', "
+            f"'consumer_username': '{consumer_username}', "
+            f"'provision_key': '{provision_key}', "
+            f"'consumer_username': '{consumer_username}', "
+            f"'scope': {bool(scope)}, ",
+            f"'api_version': '{api_version}', "
+            f"'nonce_present': {nonce}, "
+            f"'auth_time_present': {'auth_time' in data_to_store}}}"
+        )
         
         redis_client.setex(redis_key, REDIS_TTL, redis_value)
         log.debug(f"Stored auth context ({api_version}) in Redis for consumer={consumer_username}")
@@ -329,6 +357,8 @@ def generate_id_token(
     signing_secret: str,
     expires_in: int = 3600,
     issuer: str = "camera-auth",
+    nonce: str | None = None,
+    auth_time: int | None = None,
 ) -> str:
     """
     Generates a minimal HS256 ID Token.
@@ -343,7 +373,12 @@ def generate_id_token(
         "iat": now,
         "exp": now + int(expires_in),
     }
-
+    if nonce:
+        payload["nonce"] = nonce
+        
+    if isinstance(auth_time, int):
+        payload["auth_time"] = auth_time
+        
     header_b64 = _b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
     payload_b64 = _b64url(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
     signing_input = f"{header_b64}.{payload_b64}"
@@ -513,6 +548,27 @@ def generate_refresh_token() -> str:
     # 64 chars
     return secrets.token_urlsafe(48)
 
+def build_redirect_with_code(redirect_uri: str, code: str, state: str | None, response_mode: str | None) -> str:
+    u = urlparse(redirect_uri)
+    log.debug(f"build_redirect_with_code")
+    params = [("code", code)]
+    
+    if state:
+        params.append(("state", state))
+
+    log.debug(f"response_mode: {response_mode}")
+    #fragment 
+    if (response_mode or "").lower() == "fragment":
+        new_frag = urlencode(params)
+        if u.fragment:
+            new_frag = f"{u.fragment}&{new_frag}"
+        return urlunparse((u.scheme, u.netloc, u.path, u.params, u.query, new_frag))
+    
+    # default: query
+    q = dict(parse_qsl(u.query, keep_blank_values=True))
+    for k, v in params:
+        q[k] = v
+    return urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(q), u.fragment))
 
 app = FastAPI(
     title="Camera Authorizer Service",
@@ -590,6 +646,9 @@ def handle_authorization_v2(
     prompt: str = Query("none"),
     ipAddress: Optional[str] = Query(None),                
     x_correlator: Optional[str] = Header(default=None, alias="x-correlator"),
+    response_mode: Optional[str] = Query(None), 
+    nonce: Optional[str] = Query(None), 
+    max_age: Optional[str] = Query(None), 
 ):
     t0 = time.perf_counter()
     
@@ -711,9 +770,20 @@ def handle_authorization_v2(
         consumer_details = get_consumer_details_from_kong(client_id)
         if not consumer_details:
             raise HTTPException(status_code=401, detail="Invalid client_id or client credentials not found.")
-        client_secret, consumer_username = consumer_details
+        client_secret, consumer_username, registered_redirect_uris = consumer_details
         log.debug(f"Using client_id={client_id} client_secret={_redact(client_secret)} consumer={consumer_username}")
+        log.debug(f"registered_redirect_uris={registered_redirect_uris}")
 
+        if not registered_redirect_uris or redirect_uri not in registered_redirect_uris:
+            log.warning(
+                f"Invalid redirect_uri for client_id={client_id}. "
+                f"received={redirect_uri} allowed={registered_redirect_uris}"
+            )
+            return JSONResponse( 
+                status_code=400,
+                content={"code": "INVALID REDIRECTURI", "status_code": 400, "error_description": "invalid redirect_uri"},
+            )
+            
         # --- Generate and store auth code as V2 ---
         custom_auth_code = generate_auth_code(msisdn_from_ext)
 
@@ -730,6 +800,8 @@ def handle_authorization_v2(
             consumer_username,
             scope=effective_scope,
             api_version="v2",
+            nonce=nonce,           
+            max_age=max_age  
         ):
             raise HTTPException(status_code=500, detail="Failed to store auth code")
 
@@ -742,11 +814,13 @@ def handle_authorization_v2(
             f"derived state from request={_extract_state_from_request_object(request_jwt) if request_jwt else None!r}, "
             f"using effective_state={effective_state!r}"
         )
-        query_params = {"code": custom_auth_code}
-        if effective_state:
-            query_params["state"] = effective_state
-        separator = "&" if "?" in redirect_uri else "?"
-        final_redirect_uri = f"{redirect_uri}{separator}{urlencode(query_params)}"
+        final_redirect_uri = build_redirect_with_code(
+            redirect_uri=redirect_uri,
+            code=custom_auth_code,
+            state=effective_state,
+            response_mode=response_mode,
+        )
+        log.debug(f"Rebuild final_redirect_uri : {final_redirect_uri} ")
 
         log.debug(
             f"V2: Issued auth code for consumer={consumer_username}. "
@@ -884,6 +958,8 @@ def token_exchange_v2(
     client_assertion: Optional[str] = Form(default=None),
     refresh_token: Optional[str] = Form(default=None),
     x_correlator: Optional[str] = Header(default=None, alias="x-correlator"),
+    nonce: Optional[str] = Form(default=None),
+    auth_time: Optional[str] = Form(default=None),
 ):
     t0 = time.time()
     redis_client = get_redis_client()
@@ -971,7 +1047,7 @@ def token_exchange_v2(
 
             return JSONResponse(content=response_data)
 
-        log.info("Processing authorization_code grant")
+        
 
         if grant_type != "authorization_code":
             log.warning(f"Unsupported grant_type={grant_type}")
@@ -980,7 +1056,7 @@ def token_exchange_v2(
         if not code:
             log.warning("Authorization code missing in request")
             raise HTTPException(status_code=400, detail="Missing authorization code")
-
+        log.info("Processing authorization_code grant")
         auth_key = f"auth_code:{code}"
         log.debug(f"Fetching Redis key={auth_key}")
 
@@ -1004,7 +1080,9 @@ def token_exchange_v2(
         consumer_username = auth_data["consumer_username"]
         api_version = auth_data.get("api_version", "v2")
         scope_str = (auth_data.get("scope") or "").strip()
-
+        nonce = auth_data["nonce"]
+        auth_time = auth_data["auth_time"]
+        
         include_id_token = "openid" in scope_str.split()
         # issuerefresh token
         log.info("Issuing refresh token for new session")
@@ -1044,13 +1122,16 @@ def token_exchange_v2(
                 client_id=client_id,
                 signing_secret=signing_secret,
                 expires_in=3600,
-                issuer="camera-auth",
+                issuer=OIDC_ISSUER,
+                nonce=nonce,
+                auth_time=auth_time
             )
 
         log.info("Authorization_code grant completed successfully")
         log.debug(f"/v2/token(auth_code) duration={_duration_ms(t0)} ms")
 
-        return JSONResponse(content=response_data)
+        return JSONResponse(status_code=200,content=response_data,headers={"Cache-Control": "no-store","Pragma": "no-cache"})
+
 
     except HTTPException:
         log.info(f"/v2/token failed after {_duration_ms(t0)} ms")
