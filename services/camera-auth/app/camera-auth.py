@@ -72,6 +72,10 @@ def _redact(value: Optional[str], keep_tail: int = 4) -> str:
 def _duration_ms(start: float) -> float:
     return round((time.perf_counter() - start) * 1000.0, 2)
 
+def _b64url_decode(data: str) -> bytes:
+    padding = "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode(data + padding)
+
 # --- Forwarded Headers Utilities ---
 def _build_outbound_forward_headers(req: Request, base_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
     base = dict(base_headers or {})
@@ -139,7 +143,7 @@ def get_redis_client():
 
 # =========================
 # Helper Functions
-# =========================
+# =========================    
 def generate_auth_code(login_hint: str) -> str:
     timestamp = str(int(time.time()))
     internal_token = f"{login_hint}:{timestamp}"
@@ -232,7 +236,8 @@ def store_auth_code(
     scope: Optional[str] = None,
     api_version: str = "v1",
     nonce: Optional[str] = None, 
-    max_age: Optional[str] = None 
+    max_age: Optional[str] = None,
+    redirect_uri: Optional[str] = None, 
 ) -> bool:
     try:
         redis_client = get_redis_client()
@@ -246,7 +251,8 @@ def store_auth_code(
             "client_secret": client_secret,
             "consumer_username": consumer_username,
             "scope": scope if scope else "",
-            "api_version": api_version
+            "api_version": api_version,
+            "redirect_uri": redirect_uri or ""
         }
         
         if nonce:
@@ -264,6 +270,7 @@ def store_auth_code(
             f"'client_id': '{client_id}', "
             f"'client_secret': '{_redact(client_secret)}', "
             f"'consumer_username': '{consumer_username}', "
+            f"'redirect_uri': '{redirect_uri}', "
             f"'provision_key': '{provision_key}', "
             f"'consumer_username': '{consumer_username}', "
             f"'scope': {bool(scope)}, ",
@@ -320,6 +327,19 @@ def _extract_state_from_request_object(request_jwt: str) -> Optional[str]:
         log.warning(f"Failed to extract state from request object: {e}")
         return None
 
+def decode_jwt_claims_unverified(jwt_token: str) -> Dict[str, Any]:
+    """
+    Decode JWT payload without verifying signature,need to verify iat/exp for CAMARA lifetime check.
+    """
+    try:
+        parts = jwt_token.split(".")
+        if len(parts) != 3:
+            return {}
+        payload_b64 = parts[1]
+        payload_json = _b64url_decode(payload_b64).decode("utf-8")
+        return json.loads(payload_json)
+    except Exception:
+        return {}
 
 def _extract_scope_from_request_object(request_jwt: str) -> Optional[str]:
     """
@@ -624,6 +644,17 @@ async def access_log_middleware(request: Request, call_next):
 # =========================
 # Endpoints
 # =========================
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    if isinstance(exc.detail, dict) and "error" in exc.detail:
+        return JSONResponse(status_code=exc.status_code, content=exc.detail)
+
+    # fallback for your other errors
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": "invalid_request", "error_description": str(exc.detail)},
+    )
+    
 @app.get("/healthz")
 def healthz():
     try:
@@ -801,7 +832,8 @@ def handle_authorization_v2(
             scope=effective_scope,
             api_version="v2",
             nonce=nonce,           
-            max_age=max_age  
+            max_age=max_age,
+            redirect_uri = redirect_uri  
         ):
             raise HTTPException(status_code=500, detail="Failed to store auth code")
 
@@ -951,7 +983,7 @@ def handle_authorization(
 
 @app.post("/v2/token")
 def token_exchange_v2(
-    grant_type: str = Form(...),
+    grant_type: Optional[str] = Form(default=None),
     code: Optional[str] = Form(default=None),
     redirect_uri: Optional[str] = Form(default=None),
     client_assertion_type: Optional[str] = Form(default=None),
@@ -968,6 +1000,31 @@ def token_exchange_v2(
     log.debug(f"x-correlator={x_correlator}")
 
     try:
+        if client_assertion:
+            claims = decode_jwt_claims_unverified(client_assertion) 
+            iat = claims.get("iat")
+            exp = claims.get("exp")
+            if iat is not None and exp is not None:
+                try:
+                    iat_i = int(iat)
+                    exp_i = int(exp)
+                except (TypeError, ValueError):
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "invalid_client",
+                            "error_description": "client_assertion has invalid iat/exp",
+                        },
+                    )
+                if (exp_i - iat_i) > 300:
+                    raise HTTPException(
+                        status_code=400,
+                        detail={
+                            "error": "invalid_client",
+                            "error_description": "client_assertion lifetime exceeds 300 seconds",
+                        },
+                    )
+
         if grant_type == "refresh_token":
             log.info("Processing refresh_token grant")
 
@@ -1046,13 +1103,24 @@ def token_exchange_v2(
             log.debug(f"/v2/token(refresh) duration={_duration_ms(t0)} ms")
 
             return JSONResponse(content=response_data)
-
-        
-
+       
+        if not grant_type:
+            log.warning("Missing grant_type in token request")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "invalid_request",
+                    "error_description": "Missing required parameter: grant_type",
+                },
+            )
+            
         if grant_type != "authorization_code":
             log.warning(f"Unsupported grant_type={grant_type}")
-            raise HTTPException(status_code=400, detail="Unsupported grant_type")
-
+            raise HTTPException(status_code=400,detail={
+            "error": "unsupported_grant_type",
+            "error_description": "The authorization grant type is not supported by the authorization server",
+            },)
+            
         if not code:
             log.warning("Authorization code missing in request")
             raise HTTPException(status_code=400, detail="Missing authorization code")
@@ -1063,7 +1131,7 @@ def token_exchange_v2(
         auth_json = redis_client.get(auth_key)
         if not auth_json:
             log.warning("Authorization code invalid or expired")
-            raise HTTPException(status_code=400, detail="Invalid authorization code")
+            raise HTTPException(status_code=400, detail={"error": "invalid_grant","error_description": "Invalid authorization code",},)
 
         auth_data = json.loads(auth_json)
         log.info("Authorization code validated successfully")
@@ -1080,9 +1148,28 @@ def token_exchange_v2(
         consumer_username = auth_data["consumer_username"]
         api_version = auth_data.get("api_version", "v2")
         scope_str = (auth_data.get("scope") or "").strip()
-        nonce = auth_data["nonce"]
-        auth_time = auth_data["auth_time"]
-        
+        nonce = auth_data.get("nonce")
+        auth_time = auth_data.get("auth_time")
+        token_redirect_uri = redirect_uri  # from token request
+        auth_redirect_uri = auth_data.get("redirect_uri")   # from redis (authorize step)
+
+        if not token_redirect_uri:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "invalid_request",
+                    "error_description": "Missing redirect_uri"
+                }
+            )
+    
+        if not auth_redirect_uri or token_redirect_uri != auth_redirect_uri:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "invalid_grant",
+                    "error_description": "redirect_uri does not match authorization request"
+                }
+            )
         include_id_token = "openid" in scope_str.split()
         # issuerefresh token
         log.info("Issuing refresh token for new session")
