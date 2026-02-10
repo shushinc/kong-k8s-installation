@@ -783,92 +783,130 @@ def debug_buffer():
     """Return current in-memory aggregate state."""
     with _lock:
         dump = []
+
         for key, v in _aggr.items():
+            # --- unpack key ---
             if len(key) == 6:
                 hour_iso, client, api_path, carrier_name, customer_name, pricing_type = key
             else:
                 hour_iso, client, api_path, carrier_name, customer_name = key
                 pricing_type = DEFAULT_PRICING_TYPE
+
             final_carrier_name = CARRIER_NAME_OVERRIDE if CARRIER_NAME_OVERRIDE else carrier_name
-            # totals per status
+
+            # --- totals per status ---
             total_200 = int(v["200"]["count"])
             total_404 = int(v["404"]["count"])
             total_other = int(v["other"]["count"])
 
-            # per-status avg latencies
+            # --- per-status avg latencies ---
             avg_200 = (v["200"]["latency_sum"] / total_200) if total_200 else 0.0
             avg_404 = (v["404"]["latency_sum"] / total_404) if total_404 else 0.0
             avg_other = (v["other"]["latency_sum"] / total_other) if total_other else 0.0
 
-            # unit price for each endpoint (per successful transaction)
+            # --- unit price + attribute ---
             unit_price = _price_for_endpoint(api_path, pricing_type)
             attribute_from_pricing = _api_attribute_for_endpoint(api_path)
             attribute_value = attribute_from_pricing or "Unknown"
-             # client_type + markup
+
+            # --- client_type + markup ---
             client_type = _get_client_type(client)          # 'enterprise' or 'demandpartner'
             markup_percent = _markup_for_endpoint(api_path) # e.g. 20 for 20%
 
-            # emit one row per non-zero segment
-            segments = [
-                ("Successful", total_200, avg_200),
-                ("Unsuccessful Transactions", total_404, avg_404),
-                ("Other", total_other, avg_other),
-            ]
+            # discount  vlaues is lookup from Redis:
+            # key: client_discount_price:{client}
+            # value: JSON map { "<attribute_name>": <discount_pct_float>, ... }
+            discount_pct = 0.0
+            try:
+                discount_key = f"client_discount_price:{client}"
+                raw = redis_client.get(discount_key)
+                if raw:
+                    if isinstance(raw, (bytes, bytearray)):
+                        raw = raw.decode("utf-8", errors="replace")
+                    discount_map = json.loads(raw)
+                    # discount is stored by attribute name
+                    discount_pct = float(discount_map.get(attribute_value, 0.0) or 0.0)
+            except Exception:
+                logging.exception(
+                    "Failed to read discount from Redis for client=%s attribute=%s",
+                    client, attribute_value
+                )
+                discount_pct = 0.0
 
-            for tx_type, tx_count, tx_avg in segments:
-                if tx_count <= 0:
-                    continue
-                effective_unit_price = unit_price
-                #Apply markup only for enterprise clients
-                # demand partner -> no markup
-                if client_type == "enterprise" and markup_percent:
-                    effective_unit_price = unit_price * (1.0 + (markup_percent / 100.0))
-                
-                # Revenue calculation based on tx_type
-                if tx_type == "Successful":
-                    # Full price
-                    est_revenue = tx_count * effective_unit_price
-                elif tx_type == "Unsuccessful Transactions":
-                    # Half price
-                    est_revenue = tx_count * (effective_unit_price / 2)
-                else:
-                    # Other = no revenue
-                    est_revenue = 0.0
+            # ---  markup apply rule ---
+            # if demand partner -> no markup
+            # if enterprise     -> apply markup
+            applied_markup_pct = float(markup_percent or 0.0) if client_type == "enterprise" else 0.0
 
-                est_revenue = round(est_revenue, 6)
-                    
-                dump.append({
-                    "datatime": hour_iso,
-                    "client": client,
-                    "api_path": api_path,
-                    "attribute": attribute_value,
-                    "carrier_name": final_carrier_name,
-                    "customer_name": customer_name,
+            # --- Eest revenue  formula for  calculatiion  ---
+            # (($full * unit) + ($lower * unit / 2)) * (1+markup/100) * (1-discount/100)
+            full_txn = float(total_200)
+            lower_txn = float(total_404)
+            unit_price_f = float(unit_price or 0.0)
 
-                    # counts per status
-                    "total_full_rate_billable_transaction": total_200,
-                    "total_lower_rate_billable_transaction": total_404,
-                    "total_no_billable_transaction": total_other,
+            gross_revenue = (full_txn * unit_price_f) + (lower_txn * unit_price_f / 2.0)
 
-                    # averages per status
-                    "avg_latency_full_rate": avg_200,
-                    "avg_latency_lower_rate": avg_404,
-                    "avg_latency_no_billable": avg_other,
+            est_revenue = (
+                gross_revenue
+                * (1.0 + (applied_markup_pct / 100.0))
+                * (1.0 - (discount_pct / 100.0))
+            )
 
-                    #  est_revenue is calculated based on segments
-                    "pricing_type": pricing_type,
-                    "est_revenue": est_revenue
-                })
+            est_revenue = round(float(est_revenue), 6)
+
+            logging.debug(
+                "debug_buffer est_revenue client=%s client_type=%s api_path=%s pricing_type=%s "
+                "unit_price=%s full=%s lower=%s markup=%s discount=%s gross=%s est=%s",
+                client,
+                client_type,
+                api_path,
+                pricing_type,
+                unit_price_f,
+                full_txn,
+                lower_txn,
+                applied_markup_pct,
+                discount_pct,
+                gross_revenue,
+                est_revenue,
+            )
+
+            dump.append({
+                "datatime": hour_iso,
+                "client": client,
+                "client_type": client_type,
+                "api_path": api_path,
+                "attribute": attribute_value,
+                "carrier_name": final_carrier_name,
+                "customer_name": customer_name,
+
+                # counts per status
+                "total_full_rate_billable_transaction": total_200,
+                "total_lower_rate_billable_transaction": total_404,
+                "total_no_billable_transaction": total_other,
+
+                # averages per status
+                "avg_latency_full_rate": avg_200,
+                "avg_latency_lower_rate": avg_404,
+                "avg_latency_no_billable": avg_other,
+
+                # pricing + discounts/markup + revenue
+                "pricing_type": pricing_type,
+                "unit_price": unit_price_f,
+                "markup_percentage": applied_markup_pct,
+                "discount_price": discount_pct,
+                "est_revenue": est_revenue
+            })
     return jsonify({"buffer_content": dump}), 200
+
 
 
 
 @app.route("/trigger_aggregation", methods=["POST"])
 def trigger_aggregation():
     logging.info("trigger_aggregation called")
+
     if logging.getLogger().isEnabledFor(logging.DEBUG):
         try:
-            # show basic runtime config in debug
             logging.debug("BQ_PROJECT_ID=%s BQ_DATASET=%s BQ_TABLE=%s", BQ_PROJECT_ID, BQ_DATASET, BQ_TABLE)
             logging.debug("DRUPAL_ANALYTICS_URL=%s", DRUPAL_ANALYTICS_URL)
         except Exception as e:
@@ -881,102 +919,145 @@ def trigger_aggregation():
 
     logging.info("Aggregation snapshot: groups=%d", len(snapshot))
     if logging.getLogger().isEnabledFor(logging.DEBUG):
-        # show first few keys to sanity check grouping
         try:
             logging.debug("Snapshot sample keys: %s", list(snapshot.keys())[:5])
         except Exception:
             pass
 
-
     rows = []
     for key, v in snapshot.items():
+        # --- unpack key ---
         if len(key) == 6:
             hour_iso, client, api_path, carrier_name, customer_name, pricing_type = key
         else:
             hour_iso, client, api_path, carrier_name, customer_name = key
             pricing_type = DEFAULT_PRICING_TYPE
+
         final_carrier_name = CARRIER_NAME_OVERRIDE if CARRIER_NAME_OVERRIDE else carrier_name
-        # counts per status
+
+        # --- counts per status ---
         total_200 = int(v["200"]["count"])
         total_404 = int(v["404"]["count"])
         total_other = int(v["other"]["count"])
 
-        # unit price for each endpoint (per successful transaction) #check with lee on all endpoint matches
-        unit_price = _price_for_endpoint(api_path, pricing_type)
-        
-        # client_type + markup
-        client_type = _get_client_type(client)          # 'enterprise' or 'demandpartner'
-        markup_percent = _markup_for_endpoint(api_path) # e.g. 20 for 20%
-
-        
-        # per-status avg latencies
+        # --- avg latencies per status ---
         avg_200 = (v["200"]["latency_sum"] / total_200) if total_200 else 0.0
         avg_404 = (v["404"]["latency_sum"] / total_404) if total_404 else 0.0
         avg_other = (v["other"]["latency_sum"] / total_other) if total_other else 0.0
 
-        # emit one row per non-zero segment
-        segments = [
-            ("Successful", total_200, avg_200),
-            ("Unsuccessful Transactions", total_404, avg_404),
-            ("Other", total_other, avg_other),
-        ]
+        # --- pricing data from config/pricing table ---
+        unit_price = float(_price_for_endpoint(api_path, pricing_type) or 0.0)
+
         attribute_from_pricing = _api_attribute_for_endpoint(api_path)
         attribute_value = attribute_from_pricing or "Unknown"
         if attribute_value == "Unknown":
             logging.debug("Skipping BQ export for endpoint %s: Attribute is Unknown", api_path)
             continue
-        
+
+        # --- client_type + markup% (rule controlled below) ---
+        client_type = (_get_client_type(client) or "").strip().lower()          # 'enterprise' or 'demandpartner'
+        markup_percent = float(_markup_for_endpoint(api_path) or 0.0)           # e.g. 10 for 10%
+
+        # NEW RULE:
+        # demandpartner -> no markup
+        # enterprise    -> apply markup
+        applied_markup_pct = markup_percent if client_type == "enterprise" else 0.0
+
+        # --- discount lookup from Redis by attribute name ---
+        discount_pct = 0.0
+        try:
+            discount_key = f"client_discount_price:{client}"
+            raw = redis_client.get(discount_key)
+            if raw:
+                if isinstance(raw, (bytes, bytearray)):
+                    raw = raw.decode("utf-8", errors="replace")
+                discount_map = json.loads(raw) if raw else {}
+                discount_pct = float(discount_map.get(attribute_value, 0.0) or 0.0)
+        except Exception:
+            logging.exception(
+                "Failed to read discount from Redis for client=%s attribute=%s",
+                client, attribute_value
+            )
+            discount_pct = 0.0
+
+        # --- segments (keep as-is; Drupal collapse expects segments) ---
+        segments = [
+            ("Successful", total_200, avg_200),
+            ("Unsuccessful Transactions", total_404, avg_404),
+            ("Other", total_other, avg_other),
+        ]
+
+        # Precompute factors once
+        markup_factor = 1.0 + (applied_markup_pct / 100.0)
+        discount_factor = 1.0 - (discount_pct / 100.0)
+
         for tx_type, tx_count, tx_avg in segments:
             if tx_count <= 0:
                 continue
-            effective_unit_price = unit_price
-            #Apply markup only for enterprise clients
-            # demand partner -> no markup
-            if client_type == "enterprise" and markup_percent:
-                effective_unit_price = unit_price * (1.0 + (markup_percent / 100.0))
-                
-            # Revenue calculation based on tx_type
+
+            # segment gross (matches your PHP logic)
             if tx_type == "Successful":
-                # Full price
-                est_revenue = tx_count * effective_unit_price
+                segment_gross = float(tx_count) * unit_price
             elif tx_type == "Unsuccessful Transactions":
-                # Half price
-                est_revenue = tx_count * (effective_unit_price / 2)
+                segment_gross = float(tx_count) * (unit_price / 2.0)
             else:
-                # Other = no revenue
-                est_revenue = 0.0
-            est_revenue = round(est_revenue, 6)
-            
+                segment_gross = 0.0
+
+            # apply markup + discount to segment gross
+            est_revenue = segment_gross * markup_factor * discount_factor
+            est_revenue = round(float(est_revenue), 6)
+
+            logging.debug(
+                "trigger_aggregation revenue client=%s type=%s endpoint=%s unit=%s "
+                "tx_type=%s tx_count=%s markup=%s discount=%s gross=%s est=%s",
+                client,
+                client_type,
+                api_path,
+                unit_price,
+                tx_type,
+                tx_count,
+                applied_markup_pct,
+                discount_pct,
+                segment_gross,
+                est_revenue
+            )
+
             rows.append({
                 "datatime": hour_iso,
                 "carrier_name": final_carrier_name,
                 "client": client,
+                "client_type": client_type,
                 "customer_name": customer_name,
                 "endpoint": api_path,
                 "attribute": attribute_value,
-                # row segment
+
+                # segment
                 "transaction_type": tx_type,
                 "transaction_type_count": tx_count,
 
-                # totals for the whole (client,endpoint,carrier,customer,hour) combo
+                # totals (same for all segments)
                 "total_full_rate_billable_transaction": total_200,
                 "total_lower_rate_billable_transaction": total_404,
                 "total_no_billable_transaction": total_other,
 
-                # per-status averages exposed as separate columns
+                # averages (same for all segments)
                 "avg_latency_full_rate": avg_200,
                 "avg_latency_lower_rate": avg_404,
                 "avg_latency_no_billable": avg_other,
 
-                # as discussed: est_revenue = average latency of the *segment*
+                # pricing + factors
                 "pricing_type": pricing_type,
+                "unit_price": unit_price,
+                "markup_percentage": applied_markup_pct,
+                "discount_price": discount_pct,
+
+                # final
                 "est_revenue": est_revenue
             })
 
     # Insert into BigQuery if configured; otherwise return what would be inserted.
     client_bq = _get_bq_client()
     if client_bq is None:
-        # If BQ is not configured, still try pushing to Drupal (optional), then return rows to inspect.
         drupal_ok, drupal_msg = send_rows_to_drupal(rows)
         return jsonify({"rows": rows, "drupal_ok": drupal_ok, "drupal_msg": drupal_msg}), 200
 
@@ -984,28 +1065,15 @@ def trigger_aggregation():
         return jsonify({"inserted": 0}), 200
 
     table_id = f"{BQ_PROJECT_ID}.{BQ_DATASET}.{BQ_TABLE}"
-    try:
-        _debug_json("BigQuery rows (about to insert)", rows)
-        logging.info("BigQuery insert: table=%s rows=%d", table_id, len(rows))
-        errors = client_bq.insert_rows_json(table_id, rows)
+    errors = client_bq.insert_rows_json(table_id, rows)
 
-        if errors:
-            logging.error(f"BigQuery insert errors: {errors}")
-            return jsonify({"inserted": 0, "errors": errors}), 500
+    if errors:
+        logging.error("BigQuery insert errors: %s", errors)
+        return jsonify({"inserted": 0, "errors": errors}), 500
 
-        # Push the same aggregated hour-bucket values to Drupal (optional)
-        _debug_json("Drupal rows (about to send)", rows)
+    drupal_ok, drupal_msg = send_rows_to_drupal(rows)
+    return jsonify({"inserted": len(rows), "drupal_ok": drupal_ok, "drupal_msg": drupal_msg}), 200
 
-        drupal_ok, drupal_msg = send_rows_to_drupal(rows)
-        if not drupal_ok:
-            logging.warning(drupal_msg)
-        else:
-            logging.info(drupal_msg)
-
-        return jsonify({"inserted": len(rows), "drupal_ok": drupal_ok, "drupal_msg": drupal_msg}), 200
-    except Exception as e:
-        logging.error(f"BigQuery insertion failed: {e}")
-        return jsonify({"inserted": 0, "error": str(e)}), 500
 
 @app.route("/upload_pricing", methods=["POST"])
 def upload_pricing():
@@ -1183,23 +1251,29 @@ def healthz():
 
 @app.route("/client_profile", methods=["POST"])
 def client_profile():
+    # --- get the req body fromm moriarty ---
     try:
         body = request.get_json(silent=True) or {}
+        logging.debug(
+            "Incoming /client_profile request body:\n%s",
+            json.dumps(body, indent=2)
+        )
     except Exception as e:
-        logging.error("Error parsing JSON in client_profile: %s", e)
+        logging.exception("Error parsing JSON in client_profile")
         return jsonify({"error": "invalid_json", "details": str(e)}), 400
 
-    # --- get the  fields safely ---
+    # --- get required fields ---
     try:
         client = (body.get("client") or "").strip()
         client_type = (body.get("client_type") or "").strip().lower()
         status = (body.get("status") or "").strip().lower()
         pricing_type = (body.get("pricing_type") or "").strip().lower()
+        discount_prices_raw = body.get("discount_price") or []
     except Exception as e:
-        logging.error("Error extracting fields in client_profile: %s", e)
+        logging.exception("Error extracting fields in client_profile")
         return jsonify({"error": "invalid_fields", "details": str(e)}), 400
 
-    # --- all field  validation ---
+    # --- validating  ---
     if not client:
         return jsonify({"error": "client is required"}), 400
 
@@ -1212,37 +1286,92 @@ def client_profile():
     if pricing_type not in ("domestic", "international"):
         return jsonify({"error": "pricing_type must be 'domestic' or 'international'"}), 400
 
-    # --- build client  profile object ---
-    try:
-        profile = {
-            "client": client,
-            "client_type": client_type,
-            "status": status,
-            "pricing_type": pricing_type,
-            "updated_at": datetime.utcnow().isoformat() + "Z",
-        }
-    except Exception as e:
-        logging.error("Error building profile JSON: %s", e)
-        return jsonify({"error": "json_build_failed", "details": str(e)}), 500
+    # --- building client profile ---
+    profile = {
+        "client": client,
+        "client_type": client_type,
+        "status": status,
+        "pricing_type": pricing_type,
+        "updated_at": datetime.utcnow().isoformat() + "Z",
+    }
 
-    # --- store in Redis ---
-    key = f"client_profile:{client}"
+    # --- storing profile in Redis ---
+    profile_key = f"client_profile:{client}"
     try:
-        redis_client.set(key, json.dumps(profile))
-        logging.info("Stored client profile for %s in Redis key=%s", client, key)
+        redis_client.set(profile_key, json.dumps(profile))
+        logging.info(
+            "Stored client profile for client=%s key=%s",
+            client, profile_key
+        )
     except Exception as e:
-        logging.error("Redis error storing client profile for %s: %s", client, e)
-        return jsonify({"error": "redis_store_failed", "details": str(e)}), 500
+        logging.exception(
+            "Redis error storing client profile for client=%s", client
+        )
+        return jsonify({"error": "redis_store_failed"}), 500
 
-    # --- update pricing cache ---
+    # --- processing discount prices ---
+    discount_price_map = {}
+
+    try:
+        for item in discount_prices_raw:
+            if not isinstance(item, dict):
+                continue
+
+            attr = (item.get("attribute_name") or "").strip()
+            price_raw = (item.get("discount_price") or "").strip()
+
+            if not attr:
+                continue
+
+            try:
+                price = float(price_raw)
+            except ValueError:
+                logging.warning(
+                    "Invalid discount_price for client=%s attribute=%s value=%s",
+                    client, attr, price_raw
+                )
+                continue
+
+            discount_price_map[attr] = price
+
+    except Exception as e:
+        logging.exception(
+            "Error processing discount_price for client=%s", client
+        )
+        return jsonify({"error": "invalid_discount_price"}), 400
+
+    # --- storing discount prices in Redis ---
+    discount_key = f"client_discount_price:{client}"
+    try:
+        if discount_price_map:
+            redis_client.set(discount_key, json.dumps(discount_price_map))
+            logging.info(
+                "Stored %d discount prices for client=%s key=%s",
+                len(discount_price_map), client, discount_key
+            )
+    except Exception as e:
+        logging.exception(
+            "Redis error storing discount prices for client=%s", client
+        )
+        return jsonify({"error": "redis_discount_store_failed"}), 500
+
+    # --- updating local pricing cache ---
     try:
         now = time.time()
         with _client_pricing_lock:
             _client_pricing_cache[client] = (pricing_type, now)
     except Exception as e:
-        logging.warning("Failed to update local pricing cache for %s: %s", client, e)
+        logging.warning(
+            "Failed to update local pricing cache for client=%s: %s",
+            client, e
+        )
 
-    return jsonify({"status": "ok", "profile": profile}), 200
+    return jsonify({
+        "status": "ok",
+        "profile": profile,
+        "discount_price_count": len(discount_price_map),
+    }), 200
+
 
 
 if __name__ == "__main__":
