@@ -3,5 +3,7 @@ uvicorn[standard]
 httpx
 python-multipart
 boto3
-redis
-requests
+redis #redis>=5.0.0
+requests #requests>=2.31.0
+PyJWT[crypto]==2.8.0
+cryptography>=41.0.0

@@ -26,6 +26,6 @@ spec:
             - name: EXTERNAL_AUTH_URL
               value: "http://sherlock-service.hudson.svc.cluster.local:8081/v0/authenticate_user" 
             - name: OIDC_ISSUER
-              value: "https://api.dev.k.shush.tech" 
+              value: "https://api.k.shush.tech" 
             - name: LOG_LEVEL
               value: "INFO" #or INFO

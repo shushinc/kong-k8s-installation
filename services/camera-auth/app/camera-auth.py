@@ -7,15 +7,17 @@ import json
 import hashlib
 import hmac
 from logging.handlers import RotatingFileHandler
-from urllib.parse import urlparse, parse_qs, urlencode
 from typing import Dict, Any, Tuple, Optional
 import secrets
+import jwt
+from jwt import PyJWKClient
 
 import requests
 import redis
 from fastapi import FastAPI, Response, Form, HTTPException, Header, Request, Query
 from fastapi.responses import JSONResponse, RedirectResponse
-from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode, urlsplit, urlunsplit
+
 now = int(time.time())
 
 # =========================
@@ -76,6 +78,10 @@ def _b64url_decode(data: str) -> bytes:
     padding = "=" * (-len(data) % 4)
     return base64.urlsafe_b64decode(data + padding)
 
+def _strip_query(url: str) -> str:
+    p = urlsplit(url)
+    return urlunsplit((p.scheme, p.netloc, p.path, "", ""))
+
 # --- Forwarded Headers Utilities ---
 def _build_outbound_forward_headers(req: Request, base_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
     base = dict(base_headers or {})
@@ -118,6 +124,14 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 REDIS_TTL = int(os.getenv("REDIS_TTL", 300))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
 OIDC_ISSUER = os.environ.get("OIDC_ISSUER","https://api.dev.k.shush.tech")
+# JWKS for verifying client_assertion signatures (GSMA test keys)
+JWKS_URL = os.getenv("CLIENT_ASSERTION_JWKS_URL", "https://d3e6oiqxif4aii.cloudfront.net/jwks.json")
+JWKS_CACHE_TTL_SECONDS = int(os.getenv("JWKS_CACHE_TTL_SECONDS", "300"))
+ALLOWED_CLIENT_ASSERTION_ALGS = set(os.getenv("CLIENT_ASSERTION_ALLOWED_ALGS", "RS256,PS256").split(","))
+
+
+_JWKS_CACHE: dict | None = None
+_JWKS_CACHE_TS: float = 0.0
 
 # --- Redis Client ---
 _redis_client = None
@@ -379,7 +393,7 @@ def generate_id_token(
     issuer: str = "camera-auth",
     nonce: str | None = None,
     auth_time: int | None = None,
-) -> str:
+    ) -> str:
     """
     Generates a minimal HS256 ID Token.
     NOTE: This is intentionally basic; add standard OIDC claims as needed.
@@ -425,7 +439,7 @@ def issue_jwt_token(
     api_version: str = "v2",
     x_correlator: Optional[str] = None,
     scope: Optional[str] = None,
-) -> dict:
+    ) -> dict:
     if not KONG_INTERNAL_BASE:
         raise HTTPException(status_code=500, detail="KONG_INTERNAL_OAUTH_URL is not configured.")
     if not ISSUE_JWT_URL:
@@ -590,6 +604,108 @@ def build_redirect_with_code(redirect_uri: str, code: str, state: str | None, re
         q[k] = v
     return urlunparse((u.scheme, u.netloc, u.path, u.params, urlencode(q), u.fragment))
 
+def _get_jwks() -> dict:
+    global _JWKS_CACHE, _JWKS_CACHE_TS
+    now_ts = time.time()
+
+    if _JWKS_CACHE and (now_ts - _JWKS_CACHE_TS) < JWKS_CACHE_TTL_SECONDS:
+        return _JWKS_CACHE
+
+    logging.info(f"Fetching JWKS from {JWKS_URL}")
+    resp = requests.get(JWKS_URL, timeout=REQ_TIMEOUT, verify=VERIFY_TLS)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=500, detail={"error": "jwks_fetch_failed", "status": resp.status_code})
+
+    jwks = resp.json()
+    if not isinstance(jwks, dict) or "keys" not in jwks:
+        raise HTTPException(status_code=500, detail={"error": "jwks_invalid"})
+
+    _JWKS_CACHE = jwks
+    _JWKS_CACHE_TS = now_ts
+    return jwks
+
+
+def _verify_client_assertion(
+    *,
+    client_assertion: str,
+    expected_client_id: str,
+    expected_audience: str,
+    redis_client,) -> dict:
+    # read the header - kid and alg without trusting on payload 
+    try:
+        header = jwt.get_unverified_header(client_assertion)
+    except Exception:
+        raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": "invalid client_assertion header"})
+
+    alg = header.get("alg")
+    kid = header.get("kid")
+
+    if not alg or alg not in ALLOWED_CLIENT_ASSERTION_ALGS:
+        raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": f"unsupported alg: {alg}"})
+    if not kid:
+        raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": "missing kid"})
+
+    # resolve the jwks kwy 
+    jwk_client = PyJWKClient(JWKS_URL)
+    log.debug(f"resolving JWKS : jwk_client: {jwk_client}")
+    signing_key = jwk_client.get_signing_key_from_jwt(client_assertion).key
+    log.debug(f"resolving JWKS : signing_key: {signing_key}")
+    expected_aud = _strip_query(expected_audience)
+    log.debug(f"resolving JWKS : expected_aud: {expected_aud}")
+
+    # verify the signature and claims
+    try:
+        claims = jwt.decode(
+            client_assertion,
+            key=signing_key,
+            algorithms=[alg],
+            audience=expected_audience,
+            options={
+                "verify_aud": False,
+                "require": ["iss", "sub", "aud", "exp", "iat", "nbf", "jti"],
+            },
+        )
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": "client_assertion expired"})
+    except jwt.InvalidAudienceError:
+        raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": "invalid aud"})
+    except Exception as e:
+        log.exception(f"client_assertion verification failed: {type(e).__name__}: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_client", "error_description": f"{type(e).__name__}: {str(e)}"},
+        )
+    aud_claim = claims.get("aud")
+    aud_claim_norm = _strip_query(aud_claim) if isinstance(aud_claim, str) else None
+    
+    if not isinstance(aud_claim, str):
+        raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": "aud must be string"})
+
+    if _strip_query(aud_claim) != _strip_query(expected_audience):
+        raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": "invalid aud"})
+
+    # 4) Bind issuer+subject to the client (private_key_jwt expectation: iss=sub=client_id)
+    iss = claims.get("iss")
+    sub = claims.get("sub")
+    if iss != expected_client_id or sub != expected_client_id:
+        raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": "iss/sub must match client_id"})
+
+    # 5) Enforce GSMA lifetime rule (you already do this unverified; do it verified too)
+    iat = int(claims["iat"])
+    exp = int(claims["exp"])
+    if (exp - iat) > 300:
+        raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": "client_assertion lifetime exceeds 300 seconds"})
+
+    # 6) Replay protection via jti (store until exp)
+    jti = claims["jti"]
+    replay_key = f"client_assertion_jti:{expected_client_id}:{jti}"
+    ttl = max(1, exp - int(time.time()))
+    if redis_client.get(replay_key):
+        raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": "replayed client_assertion (jti already used)"})
+    redis_client.setex(replay_key, ttl, "1")
+
+    return claims
+
 app = FastAPI(
     title="Camera Authorizer Service",
     description="Securely orchestrates external authentication and token exchange.",
@@ -680,7 +796,7 @@ def handle_authorization_v2(
     response_mode: Optional[str] = Query(None), 
     nonce: Optional[str] = Query(None), 
     max_age: Optional[str] = Query(None), 
-):
+    ):
     t0 = time.perf_counter()
     
     try:
@@ -882,7 +998,7 @@ def handle_authorization(
     ipAddress: Optional[str] = Form(None),  # optional
     grant_type: str = Form(None),
     x_correlator: str | None = Header(default=None, alias="x-correlator"),
-):
+    ):
     t0 = time.perf_counter()
     try:
         log.info(
@@ -992,7 +1108,7 @@ def token_exchange_v2(
     x_correlator: Optional[str] = Header(default=None, alias="x-correlator"),
     nonce: Optional[str] = Form(default=None),
     auth_time: Optional[str] = Form(default=None),
-):
+    ):
     t0 = time.time()
     redis_client = get_redis_client()
 
@@ -1000,6 +1116,9 @@ def token_exchange_v2(
     log.debug(f"x-correlator={x_correlator}")
 
     try:
+        if client_assertion_type and client_assertion_type != "urn:ietf:params:oauth:client-assertion-type:jwt-bearer":
+            raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": "unsupported client_assertion_type"})
+
         if client_assertion:
             claims = decode_jwt_claims_unverified(client_assertion) 
             iat = claims.get("iat")
@@ -1162,6 +1281,18 @@ def token_exchange_v2(
                 }
             )
     
+        expected_aud = OIDC_ISSUER.rstrip("/") + "/v2/token"  #matches the 'aud' 
+        if client_assertion:
+                log.info(f"Verifying client_assertion for client_id={client_id}")
+                _verify_client_assertion(
+                    client_assertion=client_assertion,
+                    expected_client_id=client_id,
+                    expected_audience=expected_aud,
+                    redis_client=redis_client,
+                )
+            else:
+                raise HTTPException(status_code=400, detail={"error": "invalid_client", "error_description": "missing client_assertion"})
+
         if not auth_redirect_uri or token_redirect_uri != auth_redirect_uri:
             raise HTTPException(
                 status_code=400,
