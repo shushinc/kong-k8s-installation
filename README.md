@@ -126,7 +126,7 @@ cd kong-k8-installation/services/cookie-generator-service/app
 ```bash
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/cookie-generator-service:v8 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/cookie-generator-service:v16 \
   --push .
 ```
 
@@ -150,7 +150,7 @@ kubectl apply -k services/cookie-generator-service/k8s/on-perm
 cd kong-k8-installation/services/ts43-auth/app
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/ts43-authcode:v10 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/ts43-authcode:v11 \
   --push .
 ```
 
@@ -166,7 +166,7 @@ kubectl -n kong get deploy,po,svc | grep ts43-auth
 cd services/camera-auth/app
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v21.0.19 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/camera-auth:v21.0.43 \
   --push .
 ```
 
@@ -185,7 +185,7 @@ kubectl -n kong get deploy,po,svc | grep camera-auth
 cd kong-k8-installation/services/jwt-issuer/app
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/jwt-issuer:v6 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/jwt-issuer:v9 \
   --push .
   ```
 
@@ -258,7 +258,7 @@ sudo docker buildx build \
 
 ## Create a GLOBAL instance (no service/route/consumer) – applies to ALL proxied traffic
 ```bash
-curl -k -X POST 'https://136.115.229.241:32441/plugins' \
+curl -k -X POST 'https://35.225.60.58:32441/plugins' \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -d 'name=custom-log-plugin' \
   -d 'config.log_method=GET' \
@@ -287,7 +287,7 @@ install-{clientname}.yaml
 ```bash
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.16.2 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/aggregates:v1.0.16.31 \
   --push .
 ```
 
@@ -322,7 +322,11 @@ or
 creates a job:
 kubectl create job --from=cronjob/bq-aggregator-trigger-aggregator-testnov4 manual-trigger-$(date +%s) -n aggregates
 
-
+# Testing:
+Redis:
+kubectl exec -it ts43-redis-0 -n kong -- sh
+AUTH changeme-please
+KEYS *
 
 # TOOLS:
 1. Kong runtime log:
