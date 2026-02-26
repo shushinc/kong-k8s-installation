@@ -70,6 +70,8 @@ services:
           - sherlockapiresource/write
           - number-verification:verify
           - number-verification:device-phone-number:read
+          - sim-swap:check
+          - sim-swap:retrieve-date
         global_credentials: true
         provision_key: OAuth-Token-Dispenser-Key
         enable_authorization_code: true
@@ -648,7 +650,152 @@ services:
     strip_path: false
     tags: [sherlock]
     service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84 
+  - id: 6e0ed5b6-6b1c-4b6d-9a3e-5b3bfe3d5e41
+    methods:
+    - POST
+    name: sherlock-api_sim-swap-v2-retrieve-date-post
+    paths:
+    - ~/sim-swap/v2/retrieve-date$
+    plugins:
+    - name: jwt
+      config:
+        key_claim_name: iss
+        claims_to_verify: [ exp ]
+        run_on_preflight: true
+    - name: pre-function
+      config:
+        access:
+          - |
+            return function()
+            local auth = kong.request.get_header("authorization")
+            if not auth then return end
+            local token = auth:match("Bearer%s+(.+)")
+            if not token then return end
+
+            -- extract base64url payload (middle segment)
+            local payload_b64 = token:match("%.(.-)%.")
+            if not payload_b64 then return end
+
+            -- base64url -> base64 (replace chars + pad)
+            payload_b64 = payload_b64:gsub("-", "+"):gsub("_", "/")
+            local pad = #payload_b64 % 4
+            if pad > 0 then payload_b64 = payload_b64 .. string.rep("=", 4 - pad) end
+
+            local payload_json = ngx.decode_base64(payload_b64)
+            if not payload_json then return end
+
+            -- find "login_hint":"<value>" without JSON libs
+            local login_hint = payload_json:match([["login_hint"%s*:%s*"(.-)"]])
+            if login_hint and #login_hint > 0 then
+              kong.service.request.set_header("phonenumber", login_hint)
+            end
+            end
+    - name: post-function
+      config:
+        header_filter:
+          - |
+            return function()
+              local status = kong.response.get_status()
+
+              if status == 401 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.clear_header("WWW-Authenticate")
+
+                kong.response.exit(401, {
+                  status = 401,
+                  code = "UNAUTHENTICATED",
+                  message = "Unauthorized"
+                })
+              end
+
+              if status == 403 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.exit(403, {
+                  status = 403,
+                  code = "PERMISSION_DENIED",
+                  message = "Forbidden"
+                })
+              end
+            end
+    regex_priority: 200
+    strip_path: false
+    tags: [camara-v2.0]
+    service:
           id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 7ac286b4-5207-45e5-9f77-d6555b90a5bb
+    methods:
+    - POST
+    name: sherlock-api_sim-swap-v2-check-post
+    paths:
+    - ~/sim-swap/v2/check$
+    plugins:
+    - name: jwt
+      config:
+        key_claim_name: iss
+        claims_to_verify: [ exp ]
+        run_on_preflight: true
+    - name: pre-function
+      config:
+        access:
+          - |
+            return function()
+            local auth = kong.request.get_header("authorization")
+            if not auth then return end
+            local token = auth:match("Bearer%s+(.+)")
+            if not token then return end
+
+            -- extract base64url payload (middle segment)
+            local payload_b64 = token:match("%.(.-)%.")
+            if not payload_b64 then return end
+
+            -- base64url -> base64 (replace chars + pad)
+            payload_b64 = payload_b64:gsub("-", "+"):gsub("_", "/")
+            local pad = #payload_b64 % 4
+            if pad > 0 then payload_b64 = payload_b64 .. string.rep("=", 4 - pad) end
+
+            local payload_json = ngx.decode_base64(payload_b64)
+            if not payload_json then return end
+
+            -- find "login_hint":"<value>" without JSON libs
+            local login_hint = payload_json:match([["login_hint"%s*:%s*"(.-)"]])
+            if login_hint and #login_hint > 0 then
+              kong.service.request.set_header("phonenumber", login_hint)
+            end
+            end
+    - name: post-function
+      config:
+        header_filter:
+          - |
+            return function()
+              local status = kong.response.get_status()
+
+              if status == 401 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.clear_header("WWW-Authenticate")
+
+                kong.response.exit(401, {
+                  status = 401,
+                  code = "UNAUTHENTICATED",
+                  message = "Unauthorized"
+                })
+              end
+
+              if status == 403 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.exit(403, {
+                  status = 403,
+                  code = "PERMISSION_DENIED",
+                  message = "Forbidden"
+                })
+              end
+            end
+    regex_priority: 200
+    strip_path: false
+    tags: [camara-v2.0]
+    service:
+          id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  
   - id: d3f3336b-cd5f-5422-8c78-ed481a2a920b
     methods:
     - POST
@@ -670,6 +817,7 @@ services:
     tags: [sherlock]
     service:
           id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+
   - id: e49df9dc-3f72-5be4-9963-b94d8ea76e76
     methods:
     - POST
@@ -1026,7 +1174,7 @@ services:
 
     regex_priority: 200
     strip_path: false
-    tags: [sherlock, camara-v2.0]
+    tags: [camara-v2.0]
     service:
       id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
   - id: a91c7e42-6b9d-4f8c-8e21-5d3a2f9c1b77
@@ -1150,7 +1298,7 @@ services:
 
     regex_priority: 200
     strip_path: false
-    tags: [sherlock, camara-v2.0]
+    tags: [camara-v2.0]
     service:
       id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
 
