@@ -11,7 +11,7 @@ spec:
           # Set the required environment variable for the service
           env:
             - name: BACKEND_API_URL
-              value: "http://34.54.169.57:80"
+              value: "http://sherlock-service.hudson.svc.cluster.local:8001"
             - name: KONG_INTERNAL_OAUTH_URL
               value: "https://kong-kong-proxy.kong.svc.cluster.local:443"
             - name: KONG_ADMIN_URL
