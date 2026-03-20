@@ -42,10 +42,16 @@ data:
         Exclude_Path          /var/log/containers/fluent-bit*_aggregates_fluent-bit-*.log
 
     # STAGE 1: Select ONLY the log lines from your custom plugin
+    #[FILTER]
+    # Name   grep
+    #Match  kube.*
+    #Regex  log  \[custom-log-plugin\]
+
+
     [FILTER]
-        Name   grep
+        Name   rewrite_tag
         Match  kube.*
-        Regex  log  \[custom-log-plugin\]
+        Rule   log  \[custom-log-plugin\]  custom.plugin true
 
     # STAGE 2: Parse the logs that passed the grep filter
     [FILTER]
@@ -67,6 +73,19 @@ data:
         Match   kube.*
         Exclude path  .*\/fluent-bit.*_aggregates_fluent-bit-.*\.log$
 
+    [FILTER]
+        Name modify
+        Match kube.*
+        Rename timestamp @timestamp
+
+    [FILTER]
+        Name      parser
+        Match     custom.plugin
+        Key_Name  log
+        Parser    json_in_text
+        Reserve_Data On
+        Preserve_Key On
+
     [OUTPUT]
         Name    http
         Match   kube.*
@@ -76,7 +95,22 @@ data:
         Format  json
         Json_date_key timestamp
         Retry_Limit False
-        
+
+    [OUTPUT]
+        Name  es
+        Match *
+        Host  elasticsearch-master.monitoring.svc.cluster.local
+        Port  9200
+        HTTP_User elastic
+        HTTP_Passwd QGkMi6Iy0LxQQSS0
+        TLS   On
+        TLS.Verify Off
+        Index fluentbit-%Y.%m.%d
+        Logstash_Format On
+        Logstash_Prefix fluentbit
+        Suppress_Type_Name On
+
+
   parsers.conf: |
     [PARSER]
         Name        cri
@@ -118,6 +152,9 @@ spec:
       labels:
         app: fluent-bit
     spec:
+      securityContext:
+        seLinuxOptions:
+          type: spc_t
       serviceAccountName: fluent-bit
       tolerations:
         - operator: Exists
