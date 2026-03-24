@@ -26,6 +26,16 @@ need_cmd sed
 need_cmd awk
 need_cmd sort
 need_cmd uniq
+need_cmd tar
+
+# Kong Postgres dump configuration
+KONG_PG_NS="${KONG_PG_NS:-kong}"
+KONG_PG_HOST="${KONG_PG_HOST:-postgres-kong.kong.svc.cluster.local}"
+KONG_PG_DB="${KONG_PG_DB:-kong}"
+KONG_PG_USER="${KONG_PG_USER:-kong}"
+KONG_PG_PASSWORD="${KONG_PG_PASSWORD:-supersecret-kong}"
+KONG_PG_PORT="${KONG_PG_PORT:-5432}"
+KONG_PG_IMAGE="${KONG_PG_IMAGE:-postgres:17}"
 
 clean_yaml() {
   sed \
@@ -135,6 +145,51 @@ backup_runtime_state() {
   done < <(kubectl get pod -n "${ns}" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')
 }
 
+backup_kong_postgres_db() {
+  local nsdir="${OUTDIR}/namespaces/${KONG_PG_NS}"
+  local dbdir="${OUTDIR}/runtime/${KONG_PG_NS}/db"
+  mkdir -p "${dbdir}"
+
+  if ! kubectl get ns "${KONG_PG_NS}" >/dev/null 2>&1; then
+    echo "WARNING: namespace ${KONG_PG_NS} not found, skipping Kong Postgres dump"
+    return 0
+  fi
+
+  local dump_file="${dbdir}/kong.backup.${TS}.dump"
+  local meta_file="${dbdir}/kong-postgres-backup-meta.txt"
+
+  cat > "${meta_file}" <<EOF
+namespace=${KONG_PG_NS}
+host=${KONG_PG_HOST}
+database=${KONG_PG_DB}
+user=${KONG_PG_USER}
+port=${KONG_PG_PORT}
+image=${KONG_PG_IMAGE}
+dump_file=$(basename "${dump_file}")
+created_at=${TS}
+format=custom
+options=--no-owner --no-acl
+EOF
+
+  echo "Backing up Kong Postgres DB to ${dump_file}"
+
+  if kubectl run pg-dump-once -n "${KONG_PG_NS}" --rm -i \
+      --image="${KONG_PG_IMAGE}" \
+      --restart=Never \
+      --env="PGHOST=${KONG_PG_HOST}" \
+      --env="PGDATABASE=${KONG_PG_DB}" \
+      --env="PGUSER=${KONG_PG_USER}" \
+      --env="PGPASSWORD=${KONG_PG_PASSWORD}" \
+      --env="PGPORT=${KONG_PG_PORT}" \
+      -- /bin/bash -lc 'pg_dump --format=custom --no-owner --no-acl' \
+      > "${dump_file}"; then
+    echo "Kong Postgres backup completed: ${dump_file}"
+  else
+    echo "WARNING: Kong Postgres backup failed" | tee -a "${meta_file}"
+    rm -f "${dump_file}"
+  fi
+}
+
 backup_reports() {
   local ns="$1"
   local rpt="${OUTDIR}/reports/${ns}"
@@ -236,6 +291,10 @@ main() {
     backup_reports "${ns}"
   done
 
+  if printf '%s\n' "${NAMESPACES[@]}" | grep -qx "${KONG_PG_NS}"; then
+    backup_kong_postgres_db
+  fi
+
   write_restore_script
   create_archive
 
@@ -254,8 +313,8 @@ Restore:
   ./restore.sh ${OUTDIR}
 
 IMPORTANT:
-- This backup includes manifests, secrets, configmaps, env references, images, services, PVC objects, and runtime reports.
-- This does NOT include actual PersistentVolume data.
+- This backup includes manifests, secrets, configmaps, env references, images, services, PVC objects, runtime reports, and a Kong Postgres dump when the kong namespace is included.
+- This does NOT include actual PersistentVolume data for other workloads.
 EOF
 }
 
