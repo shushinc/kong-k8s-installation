@@ -72,6 +72,7 @@ services:
           - number-verification:device-phone-number:read
           - sim-swap:check
           - sim-swap:retrieve-date
+          - device-roaming-status:read
         global_credentials: true
         provision_key: OAuth-Token-Dispenser-Key
         enable_authorization_code: true
@@ -1373,6 +1374,79 @@ services:
     regex_priority: 200
     strip_path: false
     tags: [sherlock, ts43, silent-authentication]
+    service:
+      id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
+  - id: 8f4b2d1c-6a73-4e91-b5d8-3c7f20a6e4d9
+    methods:
+    - POST
+    name: sherlock-api_camara-device-roaming-status
+    paths:
+    - ~/device-roaming-status/v1/retrieve$
+    plugins:
+    - name: jwt
+      config:
+        key_claim_name: iss
+        claims_to_verify: [ exp ]
+        run_on_preflight: true
+    - name: pre-function
+      config:
+        access:
+          - |
+            return function()
+            local auth = kong.request.get_header("authorization")
+            if not auth then return end
+            local token = auth:match("Bearer%s+(.+)")
+            if not token then return end
+
+            -- extract base64url payload (middle segment)
+            local payload_b64 = token:match("%.(.-)%.")
+            if not payload_b64 then return end
+
+            -- base64url -> base64 (replace chars + pad)
+            payload_b64 = payload_b64:gsub("-", "+"):gsub("_", "/")
+            local pad = #payload_b64 % 4
+            if pad > 0 then payload_b64 = payload_b64 .. string.rep("=", 4 - pad) end
+
+            local payload_json = ngx.decode_base64(payload_b64)
+            if not payload_json then return end
+
+            -- find "login_hint":"<value>" without JSON libs
+            local login_hint = payload_json:match([["login_hint"%s*:%s*"(.-)"]])
+            if login_hint and #login_hint > 0 then
+              kong.service.request.set_header("phonenumber", login_hint)
+            end
+            end
+    - name: post-function
+      config:
+        header_filter:
+          - |
+            return function()
+              local status = kong.response.get_status()
+
+              if status == 401 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.clear_header("WWW-Authenticate")
+
+                kong.response.exit(401, {
+                  status = 401,
+                  code = "UNAUTHENTICATED",
+                  message = "Unauthorized"
+                })
+              end
+
+              if status == 403 then
+                kong.response.set_header("Content-Type", "application/json")
+                kong.response.exit(403, {
+                  status = 403,
+                  code = "PERMISSION_DENIED",
+                  message = "Forbidden"
+                })
+              end
+            end
+
+    regex_priority: 200
+    strip_path: false
+    tags: [sherlock, camara, device-roaming-status]
     service:
       id: 83f03359-19f7-5f8d-b8c1-e2c8267ebf84
 upstreams: []
