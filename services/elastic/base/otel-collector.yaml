@@ -1,0 +1,70 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+  batch: {}
+
+exporters:
+  debug:
+    verbosity: basic
+  elasticsearch:
+    endpoint: https://elasticsearch-master.monitoring.svc.cluster.local:9200
+    user: ${ELASTICSEARCH_USERNAME}
+    password: ${ELASTICSEARCH_PASSWORD}
+    tls:
+      ca_file: /etc/otel/certs/ca.crt
+    # IMPORTANT for ES 8.5.1:
+    mapping:
+      mode: ecs
+    logs_index: kong-otel-logs
+    logstash_format:
+      enabled: true
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug, elasticsearch]
+[root@kongcluster-dev-1 base]# 
+[root@kongcluster-dev-1 base]# cat otel-collector-config.yaml
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+  batch: {}
+
+exporters:
+  debug:
+    verbosity: basic
+  elasticsearch:
+    endpoint: https://elasticsearch-master.monitoring.svc.cluster.local:9200
+    user: ${ELASTICSEARCH_USERNAME}
+    password: ${ELASTICSEARCH_PASSWORD}
+    tls:
+      ca_file: /etc/otel/certs/ca.crt
+    # IMPORTANT for ES 8.5.1:
+    mapping:
+      mode: ecs
+    logs_index: kong-otel-logs
+    logstash_format:
+      enabled: true
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug, elasticsearch]

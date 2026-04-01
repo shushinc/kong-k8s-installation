@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: otel-collector
+  template:
+    metadata:
+      labels:
+        app: otel-collector
+    spec:
+      containers:
+        - name: otel-collector
+          image: otel/opentelemetry-collector-contrib:0.121.0
+          args:
+            - --config=/etc/otel/collector.yaml
+          ports:
+            - containerPort: 4318
+              name: otlp-http
+          env:
+            - name: ELASTICSEARCH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: otel-elastic-auth
+                  key: ELASTICSEARCH_USERNAME
+            - name: ELASTICSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: otel-elastic-auth
+                  key: ELASTICSEARCH_PASSWORD
+          volumeMounts:
+            - name: otel-config
+              mountPath: /etc/otel
+            - name: elastic-ca
+              mountPath: /etc/otel/certs
+              readOnly: true
+      volumes:
+        - name: otel-config
+          configMap:
+            name: otel-collector-config
+            items:
+              - key: collector.yaml
+                path: collector.yaml
+        - name: elastic-ca
+          secret:
+            secretName: elasticsearch-master-certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: monitoring
+spec:
+  selector:
+    app: otel-collector
+  ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
