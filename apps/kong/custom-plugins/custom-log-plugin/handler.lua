@@ -1,4 +1,3 @@
-
 local cjson = require "cjson.safe"
 
 local CustomLogPlugin = {
@@ -7,88 +6,28 @@ local CustomLogPlugin = {
 }
 
 -- Config defaults (optional; you can also put these into schema.lua)
-local MAX_REQ_BODY  = 1024 * 64    --  64KB safety cap for request body
-local MAX_RESP_BODY = 1024 * 64    -- 64KB safety cap for response body
+local MAX_REQ_BODY  = 128 * 1024   -- 128 KiB cap for request body
+local MAX_RESP_BODY = 128 * 1024   -- 128 KiB cap for response body
 
 local function is_json(ct)
   if not ct then return false end
-  return ct:find("application/json", 1, true)
-      or ct:find("+json", 1, true)
+  -- be lenient: application/json; charset=utf-8, +json, etc.
+  return ct:find("application/json", 1, true) or ct:find("+json", 1, true)
 end
-
-local function is_form(ct)
-  if not ct then return false end
-  return ct:find("application/x-www-form-urlencoded", 1, true)
-      or ct:find("multipart/form-data", 1, true)
-end
-
-local function trim_and_unquote(s)
-  if not s then return nil end
-  s = tostring(s):gsub("^%s+", ""):gsub("%s+$", "")
-  local unq = s:match("^['\"](.*)['\"]$")
-  return unq or s
-end
-
 
 -- Access phase: capture (small) request body if JSON
 function CustomLogPlugin:access(conf)
   local ct = kong.request.get_header("content-type")
-  local raw = kong.request.get_raw_body()
-
-  if raw and #raw > MAX_REQ_BODY then
-    raw = raw:sub(1, MAX_REQ_BODY)
-  end
-
-  -- Save raw JSON
-  if raw and is_json(ct) then
-    kong.ctx.shared.request_body = raw
-  end
-
-  -- Parse and save form fields
-  if raw and is_form(ct) then
-    local ok, form_tbl = pcall(ngx.decode_args, raw)
-    if ok and type(form_tbl) == "table" then
-      kong.ctx.shared.request_form = form_tbl
+  if is_json(ct) then
+    local raw = kong.request.get_raw_body()
+    if raw and #raw > 0 then
+      if #raw > MAX_REQ_BODY then
+        raw = raw:sub(1, MAX_REQ_BODY)
+      end
+      kong.ctx.shared.request_body = raw
     end
   end
 end
-
-local function get_customer_name(ctx)
-  -- 1) Headers (case-insensitive)
-  local v = kong.request.get_header("customername")
-        or kong.request.get_header("customer_name")
-        or kong.request.get_header("x-customer-name")
-  v = trim_and_unquote(v)
-  if v and v ~= "" then return v end
-
-  -- 2) Query string
-  local q = kong.request.get_query()
-  if q then
-    v = q.customerName or q.customer_name
-    v = trim_and_unquote(v)
-    if v and v ~= "" then return v end
-  end
-
-  -- 3) Form body
-  if ctx and ctx.request_form then
-    v = ctx.request_form.customerName or ctx.request_form.customer_name
-    v = trim_and_unquote(v)
-    if v and v ~= "" then return v end
-  end
-
-  -- 4) JSON body
-  if ctx and ctx.request_body then
-    local parsed = cjson.decode(ctx.request_body)
-    if type(parsed) == "table" then
-      v = parsed.customerName or parsed.customer_name
-      v = trim_and_unquote(v)
-      if v and v ~= "" then return v end
-    end
-  end
-
-  return "Unknown"
-end
-
 
 -- Body filter phase: accumulate response chunks
 function CustomLogPlugin:body_filter(conf)
@@ -146,7 +85,13 @@ function CustomLogPlugin:log(conf)
   end
 
   -- Extract customerName from request JSON (if any)
-  local customer_name = get_customer_name(ctx)
+  local customer_name = "Unknown"
+  if ctx.request_body then
+    local ok, parsed = pcall(cjson.decode, ctx.request_body)
+    if ok and parsed and type(parsed) == "table" then
+      customer_name = parsed.customerName or parsed.customer_name or "Unknown"
+    end
+  end
 
   -- Consumer
   local consumer = kong.client.get_consumer()
@@ -216,4 +161,3 @@ function CustomLogPlugin:log(conf)
 end
 
 return CustomLogPlugin
-

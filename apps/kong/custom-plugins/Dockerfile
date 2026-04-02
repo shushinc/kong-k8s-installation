@@ -1,5 +1,6 @@
 # Use the official Kong image as the base
-FROM kong:latest
+FROM kong/kong-gateway:3.13.0.2
+
 
 # Set user to root to have permissions to copy files
 USER root

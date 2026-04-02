@@ -250,7 +250,7 @@ helm upgrade --install sherlock-kong-config ./charts/Sherlock -n kong    --set d
 ```bash
 sudo docker buildx build \
   --platform linux/amd64 \
-  -t us-central1-docker.pkg.dev/sherlock-004/ts43/custom-log-plugin:v1.0.5 \
+  -t us-central1-docker.pkg.dev/sherlock-004/ts43/custom-log-plugin:v2.0.1 \
   --push .
   ```
 ##
@@ -327,6 +327,16 @@ Redis:
 kubectl exec -it ts43-redis-0 -n kong -- sh
 AUTH changeme-please
 KEYS *
+
+# portforward kong admin API ENDPINT:
+Port forward in terminal 
+```bash
+kubectl port-forward -n kong svc/kong-kong-admin 8001:8001
+```
+```bash
+In another terminal:
+curl -s http://127.0.0.1:8001/ | jq
+```
 
 # TOOLS:
 1. Kong runtime log:
