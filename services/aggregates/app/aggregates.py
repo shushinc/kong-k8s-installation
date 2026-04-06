@@ -565,29 +565,26 @@ def _to_drupal_payload(rows: list[dict]) -> list[dict]:
         dt = str(r.get("datatime") or "").strip()
         api_path = str(r.get("endpoint") or r.get("api_path") or "/unknown").strip()
 
-        # slug (only as fallback)
         attribute_slug = api_path.rstrip("/").split("/")[-1] if api_path else "unknown"
-
-        # WHAT YOU WANT: APIAttributes from pricing.csv for this endpoint
         attribute_from_pricing = _api_attribute_for_endpoint(api_path)
-
-        # Final attribute value sent to moriarty
         attribute_value = attribute_from_pricing or "Unknown"
 
-        # Analytical id can still use slug (stable + short)
         hour_part = dt.replace(":", "-").replace(" ", "-")
-        analytical_id = f"{(r.get('client') or 'unknown')}_{hour_part}_{attribute_slug}".replace("/", "_")
+        customer_part = str(r.get("customer_name") or "unknown").strip().replace(" ", "_").replace("/", "_")
+        client_part = str(r.get("client") or "unknown").strip().replace(" ", "_").replace("/", "_")
+
+        analytical_id = f"{client_part}_{hour_part}_{attribute_slug}_{customer_part}"
 
         total_full = int(r.get("total_full_rate_billable_transaction") or 0)
         total_low = int(r.get("total_lower_rate_billable_transaction") or 0)
         total_no = int(r.get("total_no_billable_transaction") or 0)
 
         formatted_ts = dt.replace("T", " ").replace("Z", "")
-        
+
         out.append({
             "carrier_name": r.get("carrier_name") or "Unknown",
             "client": r.get("client") or "Unknown",
-            "attribute": attribute_value,  
+            "attribute": attribute_value,
             "customer_name": r.get("customer_name") or "Unknown",
             "api_path": api_path,
             "analytical_id": analytical_id,
@@ -619,7 +616,7 @@ def send_rows_to_drupal(rows: list[dict]) -> tuple[bool, str]:
         msg = "DRUPAL_BASIC_USER/DRUPAL_BASIC_PASS not set; skipping Drupal push"
         logging.info(msg)
         return False, msg
-
+    collapsed_rows = _collapse_rows_for_drupal(rows)
     payload = _to_drupal_payload(rows)
 
     try:
@@ -956,9 +953,9 @@ def trigger_aggregation():
 
         # --- client_type + markup% (rule controlled below) ---
         client_type = (_get_client_type(client) or "").strip().lower()          # 'enterprise' or 'demandpartner'
-        markup_percent = float(_markup_for_endpoint(api_path) or 0.0)           # e.g. 10 for 10%
+        markup_percent = float(_markup_for_endpoint(api_path) or 0.0)           # example 10 for 10%
 
-        # NEW RULE:
+        # newrule from wesam
         # demandpartner -> no markup
         # enterprise    -> apply markup
         applied_markup_pct = markup_percent if client_type == "enterprise" else 0.0
